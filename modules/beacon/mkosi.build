@@ -3,9 +3,9 @@ set -euo pipefail
 set -x
 
 # Fetch latest release tag from GitHub API using jq
-LATEST_TAG=$(curl -s https://api.github.com/repos/AMDEPYC/beacon/releases/latest \
+LATEST_TAG=$(curl -s https://api.github.com/repos/markg-github/beacon/releases/latest \
   | jq -r '.tag_name')
 
 # Download and install into DESTDIR with correct permissions
-curl -fsSL "https://github.com/AMDEPYC/beacon/releases/download/${LATEST_TAG}/beacon-linux-x86_64" \
+curl -fsSL "https://github.com/markg-github/beacon/releases/download/${LATEST_TAG}/beacon-linux-x86_64" \
   | install -D -m 0755 /dev/stdin "${DESTDIR}/usr/local/bin/beacon"
