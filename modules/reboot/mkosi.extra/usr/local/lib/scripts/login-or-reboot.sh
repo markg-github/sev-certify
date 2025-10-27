@@ -1,7 +1,7 @@
 #!/bin/bash
 set -euo pipefail
 
-TIMEOUT=30
+TIMEOUT=999
 TTY="tty1"
 
 # Print prompt to tty1
