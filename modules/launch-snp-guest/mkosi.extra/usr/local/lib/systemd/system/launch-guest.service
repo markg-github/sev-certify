@@ -8,8 +8,8 @@ Requires=snphost-ok.service calculate-measurement.service
 [Service]
 Type=simple
 ExecStart=/usr/local/lib/scripts/launch-guest.sh
-StandardOutput=journal+console
-StandardError=journal+console
+StandardOutput=kmsg
+StandardError=kmsg
 ExecStartPost=/usr/bin/touch /run/launch-guest.ok
 
 [Install]

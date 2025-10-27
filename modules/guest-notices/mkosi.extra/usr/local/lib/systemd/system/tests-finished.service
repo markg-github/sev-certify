@@ -7,8 +7,8 @@ Wants=snpguest-tests.target
 [Service]
 Type=oneshot
 ExecStart=/bin/echo "Guest Tests Completed"
-StandardOutput=journal+console
-StandardError=journal+console
+StandardOutput=kmsg
+StandardError=kmsg
 
 [Install]
 WantedBy=multi-user.target

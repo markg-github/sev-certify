@@ -7,8 +7,8 @@ Wants=network-online.target
 [Service]
 Type=oneshot
 ExecStart=/bin/echo boot-successful
-StandardOutput=journal+console
-StandardError=journal+console
+StandardOutput=kmsg
+StandardError=kmsg
 
 [Install]
 WantedBy=multi-user.target

@@ -7,8 +7,8 @@ Requires=beacon-boot.service avahi-daemon.service sev-certificate-generator.serv
 [Service]
 Type=oneshot
 ExecStart=/usr/local/lib/scripts/beacon-report.sh
-StandardOutput=journal
-StandardError=journal
+StandardOutput=kmsg
+StandardError=kmsg
 
 [Install]
 WantedBy=multi-user.target

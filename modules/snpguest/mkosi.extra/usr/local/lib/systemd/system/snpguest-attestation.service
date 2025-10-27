@@ -7,8 +7,8 @@ Wants=snpguest-ok.service
 [Service]
 Type=oneshot
 ExecStart=/usr/local/lib/scripts/snpguest_attestation.sh
-StandardOutput=journal+console
-StandardError=journal+console
+StandardOutput=kmsg
+StandardError=kmsg
 LogExtraFields="SEV_VERSION=3.0-0" "SNPGUEST_TEST=3.0-0"
 
 [Install]

@@ -7,8 +7,8 @@ Requires=network-online.target avahi-daemon.service
 [Service]
 Type=oneshot
 ExecStart=beacon boot
-StandardOutput=journal
-StandardError=journal
+StandardOutput=kmsg
+StandardError=kmsg
 
 [Install]
 WantedBy=multi-user.target

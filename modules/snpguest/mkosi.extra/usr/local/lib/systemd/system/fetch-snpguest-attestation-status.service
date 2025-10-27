@@ -7,8 +7,8 @@ Wants=network-online.target snpguest-attestation.service
 [Service]
 Type=oneshot
 ExecStart=jq '.' /usr/local/lib/attestation_status
-StandardOutput=journal
-StandardError=journal
+StandardOutput=kmsg
+StandardError=kmsg
 Restart=on-failure
 RestartSec=5s
 

@@ -7,8 +7,8 @@ Wants=network-online.service display-guest-logs.service
 [Service]
 Type=oneshot
 ExecStart=/usr/bin/python3 /usr/local/lib/scripts/generate_sev_certificate/sev_certificate/generate_sev_certificate.py
-StandardOutput=journal+console
-StandardError=journal+console
+StandardOutput=kmsg
+StandardError=kmsg
 LogExtraFields="SEV_REPORT=TRUE"
 
 [Install]

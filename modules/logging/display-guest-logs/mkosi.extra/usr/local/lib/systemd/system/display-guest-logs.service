@@ -8,8 +8,8 @@ Requires=verify-guest.service
 [Service]
 Type=oneshot
 ExecStart=/usr/local/lib/scripts/display-guest-logs.sh
-StandardOutput=journal+console
-StandardError=journal+console
+StandardOutput=kmsg
+StandardError=kmsg
 LogExtraFields="SEV_VERSION=3.0-0" "SNPHOST_TEST=3.0-0"
 
 [Install]
