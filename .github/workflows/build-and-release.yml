@@ -59,16 +59,16 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - distro: fedora
-            release: 41
+          # - distro: fedora
+            # release: 41
           - distro: ubuntu
             release: plucky
-          - distro: debian
-            release: trixie
+          # - distro: debian
+            # release: trixie
           - distro: centos
             release: 10
-          - distro: rocky
-            release: 10
+          # - distro: rocky
+            # release: 10
 
     steps:
       - name: Checkout
