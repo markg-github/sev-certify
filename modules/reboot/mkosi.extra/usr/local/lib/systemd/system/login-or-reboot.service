@@ -5,8 +5,8 @@ After=beacon-report.service
 [Service]
 Type=oneshot
 ExecStart=/usr/local/lib/scripts/login-or-reboot.sh
-StandardOutput=journal
-StandardError=journal
+StandardOutput=kmsg
+StandardError=kmsg
 
 [Install]
 WantedBy=multi-user.target
