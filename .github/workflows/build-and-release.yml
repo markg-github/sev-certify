@@ -61,8 +61,8 @@ jobs:
         include:
           # - distro: fedora
             # release: 41
-          # - distro: ubuntu
-            # release: plucky
+          - distro: ubuntu
+            release: plucky
           - distro: debian
             release: trixie
           - distro: centos
