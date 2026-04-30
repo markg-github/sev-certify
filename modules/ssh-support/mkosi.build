@@ -1,0 +1,27 @@
+#!/bin/bash
+set -euo pipefail
+
+echo "════════════════════════════════════════════════════════════════"
+echo "🔧 SSH-SUPPORT: mkosi.build starting"
+echo "════════════════════════════════════════════════════════════════"
+
+ROOT_SSH_DIR="${DESTDIR}/root/.ssh"
+echo "📁 Creating SSH directory: ${ROOT_SSH_DIR}"
+mkdir -p "${ROOT_SSH_DIR}"
+chmod 700 "${ROOT_SSH_DIR}"
+
+echo "🔑 Fetching SSH public key(s) from GitHub for actor: ${GITHUB_ACTOR:-<not set>}"
+
+if [ -z "${GITHUB_ACTOR:-}" ]; then
+    echo "⚠️  GITHUB_ACTOR not set; no SSH key installed"
+    echo "   Image will build successfully but SSH will be disabled."
+else
+    curl -sf "https://github.com/${GITHUB_ACTOR}.keys" > "${ROOT_SSH_DIR}/authorized_keys"
+    chmod 600 "${ROOT_SSH_DIR}/authorized_keys"
+    key_count=$(wc -l < "${ROOT_SSH_DIR}/authorized_keys")
+    echo "✅ Installed ${key_count} key(s) from https://github.com/${GITHUB_ACTOR}.keys"
+fi
+
+echo "════════════════════════════════════════════════════════════════"
+echo "🔧 SSH-SUPPORT: mkosi.build completed"
+echo "════════════════════════════════════════════════════════════════"
