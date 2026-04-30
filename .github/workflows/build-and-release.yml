@@ -107,16 +107,20 @@ jobs:
           sed -i "/^\[Build\]/a\Environment=SNPHOST_TAG=$SNPHOST_TAG" modules/build/host/snphost/mkosi.conf
 
       - name: Build guest-${{ matrix.distro }}-${{ matrix.release }}
+        env:
+          GITHUB_ACTOR: ${{ github.actor }}
         run: |
           sudo mkosi --image-id=guest-${{ matrix.distro }}-${{ matrix.release }} -C images/guest-${{ matrix.distro }}-${{ matrix.release }}/ cat-config
           sudo mkosi --image-id=guest-${{ matrix.distro }}-${{ matrix.release }} -C images/guest-${{ matrix.distro }}-${{ matrix.release }}/ summary
-          sudo mkosi --image-id=guest-${{ matrix.distro }}-${{ matrix.release }} -C images/guest-${{ matrix.distro }}-${{ matrix.release }}/ build
-      
+          sudo -E mkosi --image-id=guest-${{ matrix.distro }}-${{ matrix.release }} -C images/guest-${{ matrix.distro }}-${{ matrix.release }}/ build
+
       - name: Build host-${{ matrix.distro }}-${{ matrix.release }}
+        env:
+          GITHUB_ACTOR: ${{ github.actor }}
         run: |
           sudo mkosi --image-id=host-${{ matrix.distro }}-${{ matrix.release }} -C images/host-${{ matrix.distro }}-${{ matrix.release }}/ cat-config
           sudo mkosi --image-id=host-${{ matrix.distro }}-${{ matrix.release }} -C images/host-${{ matrix.distro }}-${{ matrix.release }}/ summary
-          sudo mkosi --image-id=host-${{ matrix.distro }}-${{ matrix.release }} -C images/host-${{ matrix.distro }}-${{ matrix.release }}/ build
+          sudo -E mkosi --image-id=host-${{ matrix.distro }}-${{ matrix.release }} -C images/host-${{ matrix.distro }}-${{ matrix.release }}/ build
       
       - name: Stage artifacts for release (local copy)
         run: |        
