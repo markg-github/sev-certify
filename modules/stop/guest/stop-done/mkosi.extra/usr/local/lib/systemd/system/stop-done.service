@@ -4,8 +4,9 @@ DefaultDependencies=no
 
 [Service]
 Type=oneshot
-ExecStart=/usr/bin/true
+ExecStart=/bin/sleep 3600
 RemainAfterExit=yes
+TimeoutStartSec=infinity
 
 [Install]
 WantedBy=stop.target
