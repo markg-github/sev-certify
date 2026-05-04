@@ -5,6 +5,7 @@ set -euo pipefail
 EFI_PATH="/usr/local/lib/guest-image/guest.efi"
 MEASUREMENT_FILE="/usr/local/lib/guest-image/guest_measurement.txt"
 GUEST_ERROR_LOG="/tmp/guest-error.log"
+EXTRA_QEMU_OPTS="${EXTRA_QEMU_OPTS:-}"
 
 # Check which OVMF binary to use
 OVMF_PATH=""
@@ -43,5 +44,4 @@ exec qemu-system-x86_64 \
   -object sev-snp-guest,id=sev0,cbitpos=51,reduced-phys-bits=1,kernel-hashes=on,host-data="${guest_measurement_sha256sum}" \
   -bios ${OVMF_PATH} \
   -kernel ${EFI_PATH} \
-  -netdev user,id=net0 \
-  -device virtio-net-pci,netdev=net0 2> ${GUEST_ERROR_LOG}
+  ${EXTRA_QEMU_OPTS} 2> ${GUEST_ERROR_LOG}
