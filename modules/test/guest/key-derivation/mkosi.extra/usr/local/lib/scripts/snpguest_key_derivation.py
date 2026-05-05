@@ -110,11 +110,11 @@ def derive_key(
     cmd = [
         "snpguest", "key",
         str(output_file),
-        "--root-key", root_key,
+        root_key,
         "--vmpl", str(vmpl),
-        "--guest-svn", str(guest_svn),
-        "--tcb-version", str(tcb_version),
-        "--guest-field-select", str(guest_field_select)
+        "--guest_svn", str(guest_svn),
+        "--tcb_version", str(tcb_version),
+        "--guest_field_select", str(guest_field_select)
     ]
 
     description = (
