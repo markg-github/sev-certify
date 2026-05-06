@@ -122,6 +122,7 @@ def derive_key(
         f"svn={guest_svn}, tcb={tcb_version}, gfs={guest_field_select}"
     )
 
+    print(f"CMD: {' '.join(str(x) for x in cmd)}")
     status, stdout, stderr = run_command(cmd, description)
     return check_command_status(status, description, stdout, stderr)
 
@@ -136,22 +137,11 @@ def read_key_hex(key_file: Path) -> Optional[str]:
     Returns:
         Hex string of the key, or None on error
     """
-    cmd = ["snpguest", "display", "key", str(key_file)]
-    status, stdout, stderr = run_command(cmd, f"Display key {key_file}")
-
-    if status != 0:
-        print(f"ERROR: Failed to read key from {key_file}", file=sys.stderr)
+    try:
+        return key_file.read_bytes().hex()
+    except Exception as e:
+        print(f"ERROR: Failed to read key from {key_file}: {e}", file=sys.stderr)
         return None
-
-    # Parse hex key from output
-    # Expected format: "Key: 0x<hex>"
-    for line in stdout.split('\n'):
-        if 'Key:' in line or '0x' in line:
-            # Extract hex value
-            hex_part = line.split('0x')[-1].strip()
-            return hex_part.lower()
-
-    return None
 
 
 def test_determinism() -> bool:
@@ -402,6 +392,41 @@ def test_guest_field_select_sensitivity() -> bool:
         return False
 
 
+def print_attestation_report() -> None:
+    """
+    Fetch and display the attestation report.
+
+    Shows guest_svn (upper bound for --guest_svn) and current, committed,
+    and reported TCB (committed is the upper bound for --tcb_version).
+    """
+    report_path = KEY_DERIVATION_DIR / "report.bin"
+    request_path = KEY_DERIVATION_DIR / "request.bin"
+
+    print("\n" + "="*70)
+    print("ATTESTATION REPORT (reference values for key derivation bounds)")
+    print("="*70)
+
+    cmd = ["snpguest", "report", str(report_path), str(request_path), "--random"]
+    print(f"CMD: {' '.join(cmd)}")
+    status, stdout, stderr = run_command(cmd, "Get attestation report")
+    if status != 0:
+        print("WARNING: Failed to get attestation report", file=sys.stderr)
+        if stderr:
+            print(f"STDERR: {stderr}", file=sys.stderr)
+        return
+
+    cmd = ["snpguest", "display", "report", str(report_path)]
+    print(f"CMD: {' '.join(cmd)}")
+    status, stdout, stderr = run_command(cmd, "Display attestation report")
+    if status != 0:
+        print("WARNING: Failed to display attestation report", file=sys.stderr)
+        if stderr:
+            print(f"STDERR: {stderr}", file=sys.stderr)
+        return
+
+    print(stdout)
+
+
 def main() -> int:
     """
     Main test runner.
@@ -422,6 +447,9 @@ def main() -> int:
     # Clear status log
     if KEY_DERIVATION_STATUS_LOG.exists():
         KEY_DERIVATION_STATUS_LOG.unlink()
+
+    # Print attestation report for reference (TCB bounds, guest SVN upper bound)
+    print_attestation_report()
 
     # Run all tests
     tests = [
