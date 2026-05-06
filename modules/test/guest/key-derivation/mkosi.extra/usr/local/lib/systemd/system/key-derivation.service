@@ -9,4 +9,4 @@ Type=oneshot
 ExecStart=/usr/bin/python3 /usr/local/lib/scripts/snpguest_key_derivation.py
 StandardOutput=journal+console
 StandardError=journal+console
-LogExtraFields="SEV_VERSION=3.0.0-0" "SNPGUEST_TEST=KEY_DERIVATION"
+LogExtraFields="SEV_VERSION=3.0.0-0" "SNPGUEST_TEST=3.0.0-0"
