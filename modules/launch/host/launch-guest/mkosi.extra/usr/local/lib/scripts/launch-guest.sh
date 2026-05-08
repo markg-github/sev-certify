@@ -47,7 +47,7 @@ SEV_SNP_OBJECT="sev-snp-guest,id=sev0,cbitpos=51,reduced-phys-bits=1,kernel-hash
 if [ -f "${ID_BLOCK_FILE}" ] && [ -f "${ID_AUTH_FILE}" ]; then
     ID_BLOCK_B64=$(cat "${ID_BLOCK_FILE}")
     ID_AUTH_B64=$(cat "${ID_AUTH_FILE}")
-    SEV_SNP_OBJECT="${SEV_SNP_OBJECT},id-block=${ID_BLOCK_B64},id-auth=${ID_AUTH_B64},author-key-enabled=off"
+    SEV_SNP_OBJECT="${SEV_SNP_OBJECT},id-block=${ID_BLOCK_B64},id-auth=${ID_AUTH_B64}"
     dbg "ID block: ${ID_BLOCK_FILE} (present)"
     dbg "ID auth:  ${ID_AUTH_FILE} (present)"
 else

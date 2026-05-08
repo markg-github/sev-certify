@@ -349,8 +349,7 @@ async function generate() {
         el('out_qemu').textContent =
             `-object sev-snp-guest,id=sev0,...,\\\n` +
             `  id-block=${idBlockB64},\\\n` +
-            `  id-auth=${idAuthB64},\\\n` +
-            `  author-key-enabled=off`;
+            `  id-auth=${idAuthB64}`;
 
         el('downloads').style.display = 'block';
         log(`\u2713 id-block: ${idBlock.length} B   id-auth: ${idAuth.length} B`, false, true);
