@@ -1,0 +1,372 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>SEV-SNP ID Block Builder</title>
+<style>
+* { box-sizing: border-box; }
+body { font-family: monospace; max-width: 860px; margin: 2em auto; padding: 0 1.5em; background: #1a1a1a; color: #e0e0e0; }
+h1 { color: #fff; margin-bottom: .2em; }
+h2 { color: #aaa; border-bottom: 1px solid #444; padding-bottom: .3em; margin-top: 2em; }
+p.desc { color: #888; font-size: .85em; margin: .3em 0 1em; }
+label { display: block; margin-top: .8em; color: #ccc; font-size: .88em; }
+input[type=text], input[type=number], textarea {
+  width: 100%; padding: .4em .5em; background: #252525; color: #e0e0e0;
+  border: 1px solid #555; font-family: monospace; font-size: .88em; margin-top: .2em;
+}
+input[type=text][readonly], input[type=number][readonly], textarea[readonly] {
+  background: #1e1e1e; color: #888; border-color: #3a3a3a;
+}
+input[type=checkbox] { margin-right: .4em; accent-color: #4a8; }
+.row { display: flex; gap: 1em; }
+.row > * { flex: 1; }
+button {
+  margin-top: .8em; padding: .55em 1.1em; background: #2e2e2e; color: #ddd;
+  border: 1px solid #555; cursor: pointer; font-family: monospace; font-size: .9em;
+}
+button:hover { background: #3a3a3a; }
+button.primary { background: #1a3d1a; border-color: #2a6a2a; color: #8f8; }
+button.primary:hover { background: #224422; }
+.hint { color: #777; font-size: .8em; margin-top: .25em; }
+.log {
+  margin-top: 1em; background: #111; padding: .8em 1em; border: 1px solid #333;
+  white-space: pre-wrap; font-size: .82em; min-height: 3em; color: #999; max-height: 14em; overflow-y: auto;
+}
+.log .ok  { color: #6c6; }
+.log .err { color: #c66; }
+fieldset { border: 1px solid #3a3a3a; padding: .8em 1em; margin-top: 1em; }
+legend { color: #999; padding: 0 .4em; font-size: .9em; }
+.policy-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: .3em .5em; margin-top: .6em; }
+.policy-grid label { margin-top: 0; }
+.downloads { display: none; margin-top: 1em; }
+.output-box {
+  background: #111; border: 1px solid #3a3a3a; padding: .6em .8em;
+  font-size: .82em; word-break: break-all; color: #8c8; margin-top: .4em; min-height: 2em;
+}
+</style>
+</head>
+<body>
+
+<h1>SEV-SNP ID Block Builder</h1>
+<p class="desc">
+  Generates a signed ID block and ID auth block for SEV-SNP guest launch.
+  Only an ID key is required; use <code>author-key-enabled=off</code> in QEMU so the firmware
+  ignores the author key fields. Output is base64-encoded for QEMU's
+  <code>id-block=</code> and <code>id-auth=</code> options.
+</p>
+
+<!-- ── ID Block ───────────────────────────────────────────────────────── -->
+<h2>ID Block</h2>
+
+<label>Launch Digest (48 bytes, hex)</label>
+<input type="text" id="launch_digest"
+  value="000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
+  placeholder="96 hex chars">
+<div class="hint">All zeros skips the firmware launch-measurement check — sufficient for SVN sensitivity testing.</div>
+
+<div class="row" style="margin-top:.6em">
+  <div>
+    <label>Family ID (16 bytes, hex)</label>
+    <input type="text" id="family_id" value="00000000000000000000000000000000" placeholder="32 hex chars">
+  </div>
+  <div>
+    <label>Image ID (16 bytes, hex)</label>
+    <input type="text" id="image_id" value="00000000000000000000000000000000" placeholder="32 hex chars">
+  </div>
+</div>
+
+<div class="row" style="margin-top:.6em">
+  <div>
+    <label>Guest SVN</label>
+    <input type="number" id="guest_svn" value="1" min="0" max="65535">
+    <div class="hint">Upper bound for <code>--guest_svn</code> in key derivation. Set ≥ 1 to enable SVN sensitivity testing (tests values 0..guest_svn).</div>
+  </div>
+  <div>
+    <label>Version (fixed at 1)</label>
+    <input type="text" value="1" readonly>
+  </div>
+</div>
+
+<!-- ── Guest Policy ───────────────────────────────────────────────────── -->
+<h2>Guest Policy</h2>
+<p class="desc">
+  64-bit value embedded in the ID block. Must match the policy set at
+  <code>SNP_LAUNCH_START</code> — firmware rejects the launch if they differ.
+</p>
+
+<fieldset>
+  <legend>ABI Version</legend>
+  <div class="row">
+    <div>
+      <label>ABI Minor (bits 7:0)</label>
+      <input type="number" id="abi_minor" value="0" min="0" max="255">
+    </div>
+    <div>
+      <label>ABI Major (bits 15:8)</label>
+      <input type="number" id="abi_major" value="0" min="0" max="255">
+    </div>
+  </div>
+</fieldset>
+
+<fieldset>
+  <legend>Policy Flags</legend>
+  <div class="policy-grid">
+    <label><input type="checkbox" id="smt_allowed" checked> bit 16: SMT Allowed</label>
+    <label><input type="checkbox" id="migrate_ma">          bit 18: Migration Agent Allowed</label>
+    <label><input type="checkbox" id="debug_allowed">       bit 19: Debug Allowed</label>
+    <label><input type="checkbox" id="single_socket">       bit 20: Single Socket Required</label>
+    <label><input type="checkbox" id="cxl_allowed">         bit 21: CXL Allowed</label>
+    <label><input type="checkbox" id="mem_aes_256">         bit 22: Require AES-256-XTS</label>
+    <label><input type="checkbox" id="rapl_dis">            bit 23: RAPL Disabled</label>
+    <label><input type="checkbox" id="ciphertext_hiding">   bit 24: Ciphertext Hiding Required</label>
+    <label><input type="checkbox" id="page_swap_dis">       bit 25: Page Swap Disabled</label>
+  </div>
+</fieldset>
+
+<label>Raw Policy Value (u64, little-endian hex bytes)</label>
+<input type="text" id="policy_raw" readonly>
+
+<!-- ── ID Key ─────────────────────────────────────────────────────────── -->
+<h2>ID Key</h2>
+<p class="desc">
+  Signs the ID block. ECDSA P-384. The corresponding public key is embedded in the ID auth block.
+  Author key fields in the auth block are zeroed; set <code>author-key-enabled=off</code> in QEMU.
+</p>
+
+<button onclick="generateIdKey()">Generate New P-384 ID Key</button>
+<label>Public Key QX || QY (hex, little-endian AMD format)</label>
+<input type="text" id="id_pubkey_hex" readonly placeholder="(generate a key first)">
+<label>Private Key (PKCS#8 PEM — save this to reproduce the block later)</label>
+<textarea id="id_privkey_pem" rows="4" readonly placeholder="(generate a key first)"></textarea>
+
+<!-- ── Generate ──────────────────────────────────────────────────────── -->
+<h2>Generate</h2>
+<button class="primary" onclick="generate()">Build ID Block + ID Auth Block</button>
+
+<div class="log" id="log">Ready. Generate an ID key to begin.</div>
+
+<div class="downloads" id="downloads">
+  <h2 style="margin-top:1.4em">Output</h2>
+  <p class="desc">Base64 values for QEMU. Binary downloads also available.</p>
+
+  <label>id-block (base64)</label>
+  <div class="output-box" id="out_id_block"></div>
+
+  <label>id-auth (base64)</label>
+  <div class="output-box" id="out_id_auth"></div>
+
+  <label>QEMU snippet</label>
+  <div class="output-box" id="out_qemu"></div>
+
+  <div style="margin-top:.8em">
+    <button onclick="dl(idBlockB64,  'id-block.b64','text/plain')">Download id-block.b64</button>
+    <button onclick="dl(idAuthB64,   'id-auth.b64', 'text/plain')">Download id-auth.b64</button>
+    <button onclick="dl(idBlockBytes,'id-block.bin','application/octet-stream')">Download id-block.bin</button>
+    <button onclick="dl(idAuthBytes, 'id-auth.bin', 'application/octet-stream')">Download id-auth.bin</button>
+  </div>
+</div>
+
+<script>
+'use strict';
+
+// ── Utilities ─────────────────────────────────────────────────────────────
+
+const el = n => document.getElementById(n);
+const cb = n => el(n).checked;
+const clamp = (n, lo, hi) => Math.min(Math.max(parseInt(el(n).value,10)||0, lo), hi);
+
+function fromHex(h) {
+    if (h.length % 2) throw new Error('Odd-length hex string');
+    return new Uint8Array(h.match(/.{2}/g).map(b => parseInt(b,16)));
+}
+const hex    = u8  => Array.from(u8).map(b => b.toString(16).padStart(2,'0')).join('');
+const b64url = s   => new Uint8Array([...atob(s.replace(/-/g,'+').replace(/_/g,'/'))].map(c=>c.charCodeAt(0)));
+const toB64  = u8  => btoa(Array.from(u8, b => String.fromCharCode(b)).join(''));
+
+async function pkcs8pem(privKey) {
+    const der = await crypto.subtle.exportKey('pkcs8', privKey);
+    const b64 = toB64(new Uint8Array(der));
+    return `-----BEGIN PRIVATE KEY-----\n${b64.match(/.{1,64}/g).join('\n')}\n-----END PRIVATE KEY-----`;
+}
+
+// ── Logging ───────────────────────────────────────────────────────────────
+
+function clearLog() { el('log').innerHTML = ''; }
+function log(msg, isErr=false, isOk=false) {
+    const e = el('log'), s = document.createElement('span');
+    s.className = isErr ? 'err' : isOk ? 'ok' : '';
+    s.textContent = msg + '\n';
+    if (e.textContent.trim() === 'Ready. Generate an ID key to begin.') e.textContent = '';
+    e.appendChild(s);
+    e.scrollTop = e.scrollHeight;
+}
+
+let idKeyPair = null;
+let idBlockB64 = null, idAuthB64 = null, idBlockBytes = null, idAuthBytes = null;
+
+// ── Policy ────────────────────────────────────────────────────────────────
+
+function computePolicy() {
+    let p = 0n;
+    p |= BigInt(clamp('abi_minor', 0, 255));
+    p |= BigInt(clamp('abi_major', 0, 255)) << 8n;
+    if (cb('smt_allowed'))       p |= 1n << 16n;
+    if (cb('migrate_ma'))        p |= 1n << 18n;
+    if (cb('debug_allowed'))     p |= 1n << 19n;
+    if (cb('single_socket'))     p |= 1n << 20n;
+    if (cb('cxl_allowed'))       p |= 1n << 21n;
+    if (cb('mem_aes_256'))       p |= 1n << 22n;
+    if (cb('rapl_dis'))          p |= 1n << 23n;
+    if (cb('ciphertext_hiding')) p |= 1n << 24n;
+    if (cb('page_swap_dis'))     p |= 1n << 25n;
+    return p;
+}
+
+function updatePolicyRaw() {
+    const buf = new ArrayBuffer(8);
+    new DataView(buf).setBigUint64(0, computePolicy(), true);
+    el('policy_raw').value = Array.from(new Uint8Array(buf), b => b.toString(16).padStart(2,'0')).join(' ');
+}
+
+['abi_minor','abi_major','smt_allowed','migrate_ma','debug_allowed','single_socket',
+ 'cxl_allowed','mem_aes_256','rapl_dis','ciphertext_hiding','page_swap_dis']
+  .forEach(n => { el(n).addEventListener('change', updatePolicyRaw); el(n).addEventListener('input', updatePolicyRaw); });
+updatePolicyRaw();
+
+// ── Key management ────────────────────────────────────────────────────────
+
+async function generateIdKey() {
+    idKeyPair = await crypto.subtle.generateKey({ name:'ECDSA', namedCurve:'P-384' }, true, ['sign','verify']);
+    const amd = await amdPubKey(idKeyPair.publicKey);
+    el('id_pubkey_hex').value  = 'qx:' + hex(amd.qx) + '  qy:' + hex(amd.qy);
+    el('id_privkey_pem').value = await pkcs8pem(idKeyPair.privateKey);
+    log('Generated P-384 ID key pair.');
+}
+
+// ── Crypto helpers ────────────────────────────────────────────────────────
+
+// 48-byte big-endian WebCrypto component → AMD 72-byte little-endian
+function toAmd72(be48) {
+    const out = new Uint8Array(72);
+    out.set(new Uint8Array(be48).reverse());
+    return out;
+}
+
+async function amdPubKey(pubKey) {
+    const jwk = await crypto.subtle.exportKey('jwk', pubKey);
+    return { qx: toAmd72(b64url(jwk.x)), qy: toAmd72(b64url(jwk.y)) };
+}
+
+async function signAmd(privKey, data) {
+    const raw = new Uint8Array(
+        await crypto.subtle.sign({ name:'ECDSA', hash:'SHA-384' }, privKey, data)
+    ); // IEEE P1363: R(48)||S(48), big-endian
+    return { r: toAmd72(raw.slice(0,48)), s: toAmd72(raw.slice(48,96)) };
+}
+
+// ── Binary builders ───────────────────────────────────────────────────────
+
+// IdBlock: 96 bytes
+function buildIdBlock(ld, familyId, imageId, guestSvn, policy) {
+    const buf = new ArrayBuffer(96);
+    const v = new DataView(buf), u = new Uint8Array(buf);
+    u.set(ld, 0); u.set(familyId, 48); u.set(imageId, 64);
+    v.setUint32(80, 1,        true); // version = 1
+    v.setUint32(84, guestSvn, true);
+    v.setBigUint64(88, policy,true);
+    return u;
+}
+
+// SevEcdsaSig: r(72) + s(72) + reserved(368) = 512 bytes
+function buildSig(sig) {
+    const out = new Uint8Array(512);
+    out.set(sig.r, 0); out.set(sig.s, 72);
+    return out;
+}
+
+// SevEcdsaPubKey: curve(4 u32le=2) + qx(72) + qy(72) + reserved(880) = 1028 bytes
+function buildPubKey(amd) {
+    const out = new Uint8Array(1028);
+    new DataView(out.buffer).setUint32(0, 2, true); // curve = 2 (P-384)
+    out.set(amd.qx, 4); out.set(amd.qy, 76);
+    return out;
+}
+
+// IdAuth: 4096 bytes
+// 0x000 id_key_algo(4)  0x004 author_key_algo(4)  0x008 reserved1(56)
+// 0x040 id_block_sig(512)  0x240 id_pubkey(1028)  0x644 reserved2(60)
+// 0x680 id_key_sig(512)    0x880 author_pub_key(1028)  0xC84 reserved3(892)
+// author fields zeroed — use author-key-enabled=off in QEMU
+function buildIdAuth(idBlockSig, idPubKeyBytes) {
+    const out = new Uint8Array(4096);
+    const v   = new DataView(out.buffer);
+    v.setUint32(0x000, 1, true); // id_key_algo = 1 (P-384)
+    v.setUint32(0x004, 1, true); // author_key_algo = 1 (P-384)
+    out.set(buildSig(idBlockSig), 0x040);
+    out.set(idPubKeyBytes,        0x240);
+    // 0x680 id_key_sig: zeros (no author key)
+    // 0x880 author_pub_key: zeros (no author key)
+    return out;
+}
+
+// ── Main generate ─────────────────────────────────────────────────────────
+
+async function generate() {
+    clearLog(); el('downloads').style.display = 'none';
+    idBlockB64 = idAuthB64 = idBlockBytes = idAuthBytes = null;
+    try {
+        if (!idKeyPair) throw new Error('Generate an ID key first.');
+
+        const ldHex  = el('launch_digest').value.replace(/\s/g,'');
+        const fIdHex = el('family_id').value.replace(/\s/g,'');
+        const iIdHex = el('image_id').value.replace(/\s/g,'');
+        if (ldHex.length  !== 96) throw new Error('Launch digest must be 96 hex chars (48 bytes).');
+        if (fIdHex.length !== 32) throw new Error('Family ID must be 32 hex chars (16 bytes).');
+        if (iIdHex.length !== 32) throw new Error('Image ID must be 32 hex chars (16 bytes).');
+
+        const guestSvn = parseInt(el('guest_svn').value, 10);
+        if (isNaN(guestSvn) || guestSvn < 0) throw new Error('Invalid guest SVN.');
+        const policy = computePolicy();
+
+        log(`guest_svn=${guestSvn}  policy=0x${policy.toString(16)}`);
+
+        const idBlock = buildIdBlock(
+            fromHex(ldHex), fromHex(fIdHex), fromHex(iIdHex), guestSvn, policy
+        );
+        log('Signing ID block with ID key (ECDSA P-384 / SHA-384)...');
+        const sig        = await signAmd(idKeyPair.privateKey, idBlock);
+        const amd        = await amdPubKey(idKeyPair.publicKey);
+        const pubKeyBytes = buildPubKey(amd);
+        const idAuth     = buildIdAuth(sig, pubKeyBytes);
+
+        idBlockBytes = idBlock;
+        idAuthBytes  = idAuth;
+        idBlockB64   = toB64(idBlock);
+        idAuthB64    = toB64(idAuth);
+
+        el('out_id_block').textContent = idBlockB64;
+        el('out_id_auth').textContent  = idAuthB64;
+        el('out_qemu').textContent =
+            `-object sev-snp-guest,id=sev0,...,\\\n` +
+            `  id-block=${idBlockB64},\\\n` +
+            `  id-auth=${idAuthB64},\\\n` +
+            `  author-key-enabled=off`;
+
+        el('downloads').style.display = 'block';
+        log(`\u2713 id-block: ${idBlock.length} B   id-auth: ${idAuth.length} B`, false, true);
+    } catch(e) {
+        log(`Error: ${e.message}`, true);
+    }
+}
+
+// ── Download ──────────────────────────────────────────────────────────────
+
+function dl(content, name, type) {
+    const url = URL.createObjectURL(new Blob([content], {type}));
+    Object.assign(document.createElement('a'), {href:url, download:name}).click();
+    URL.revokeObjectURL(url);
+}
+
+</script>
+</body>
+</html>
