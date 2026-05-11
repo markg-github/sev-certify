@@ -22,6 +22,16 @@ else
     echo "✅ Installed ${key_count} key(s) from https://github.com/${GITHUB_ACTOR}.keys"
 fi
 
+echo "⏱️  Baking SSH timeout defaults into systemd DefaultEnvironment"
+SSH_HOST_TIMEOUT_VAL="${SSH_HOST_TIMEOUT:-60}"
+SSH_GUEST_TIMEOUT_VAL="${SSH_GUEST_TIMEOUT:-150}"
+mkdir -p "${DESTDIR}/etc/systemd/system.conf.d"
+cat > "${DESTDIR}/etc/systemd/system.conf.d/10-ssh-timeouts.conf" <<EOF
+[Manager]
+DefaultEnvironment=SSH_HOST_TIMEOUTrt=${SSH_HOST_TIMEOUT_VAL} SSH_GUEST_TIMEOUTrt=${SSH_GUEST_TIMEOUT_VAL}
+EOF
+echo "   SSH_HOST_TIMEOUTrt=${SSH_HOST_TIMEOUT_VAL}  SSH_GUEST_TIMEOUTrt=${SSH_GUEST_TIMEOUT_VAL}"
+
 echo "════════════════════════════════════════════════════════════════"
 echo "🔧 SSH-SUPPORT: mkosi.build completed"
 echo "════════════════════════════════════════════════════════════════"
