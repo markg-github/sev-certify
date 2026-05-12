@@ -2,6 +2,7 @@
 Description=Run SNP Key Derivation Tests after boot
 DefaultDependencies=no
 After=system.target
+Before=attestation-workflow.service
 Wants=system.target
 
 [Service]
