@@ -1,0 +1,12 @@
+[Unit]
+Description=Patch guest measurement into id-block.b64
+DefaultDependencies=no
+After=calculate-measurement.service
+Wants=calculate-measurement.service
+Before=launch-guest.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/lib/scripts/generate_id_block.py
+StandardOutput=journal+console
+StandardError=journal+console
