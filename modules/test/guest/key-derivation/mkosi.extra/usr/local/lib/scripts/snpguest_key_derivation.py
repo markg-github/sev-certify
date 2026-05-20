@@ -89,20 +89,26 @@ def check_command_status(
     status: int,
     command_name: str,
     stdout: str,
-    stderr: str
+    stderr: str,
+    expected_failure: bool = False,
 ) -> bool:
-    """Check command status, log to file, and print errors."""
+    """Check command status, log to file, and print errors.
+
+    If expected_failure is True, a non-zero exit is treated as a normal
+    negative-test outcome: the failure is not logged to stderr.
+    """
     status_entry = {command_name: str(status)}
     with open(KEY_DERIVATION_STATUS_LOG, 'a') as f:
         json.dump(status_entry, f)
         f.write('\n')
 
     if status != 0:
-        print(f"ERROR: {command_name} failed!", file=sys.stderr)
-        if stderr:
-            print(f"STDERR: {stderr}", file=sys.stderr)
-        if stdout:
-            print(f"STDOUT: {stdout}", file=sys.stderr)
+        if not expected_failure:
+            print(f"ERROR: {command_name} failed!", file=sys.stderr)
+            if stderr:
+                print(f"STDERR: {stderr}", file=sys.stderr)
+            if stdout:
+                print(f"STDOUT: {stdout}", file=sys.stderr)
         return False
     else:
         if stdout:
@@ -116,7 +122,8 @@ def derive_key(
     vmpl: int = 0,
     guest_svn: int = 0,
     tcb_version: int = 0,
-    guest_field_select: int = 1
+    guest_field_select: int = 1,
+    expected_failure: bool = False,
 ) -> bool:
     """
     Derive a key using snpguest key command.
@@ -130,6 +137,8 @@ def derive_key(
                      per component; only mixed in when GFS bit 5 is set)
         guest_field_select: Guest field select bitmap (GFS is always mixed in;
                             individual bits enable mixing specific guest fields)
+        expected_failure: When True, a non-zero exit is a normal negative-test
+                          outcome and will not be logged as an ERROR.
 
     Returns:
         True if successful, False otherwise
@@ -151,7 +160,8 @@ def derive_key(
 
     dprint(f"CMD: {' '.join(str(x) for x in cmd)}")
     status, stdout, stderr = run_command(cmd, description)
-    return check_command_status(status, description, stdout, stderr)
+    return check_command_status(status, description, stdout, stderr,
+                                expected_failure=expected_failure)
 
 
 def read_key_hex(key_file: Path) -> Optional[str]:
@@ -167,14 +177,14 @@ def parse_tcb_section(section_text: str) -> TcbVersion:
     """Parse boot_loader/TEE/SNP/microcode values from a TCB section of report output."""
     tcb = TcbVersion()
     for attr, pattern in [
-        ('boot_loader', r'Boot\s*Loader\s*[:\s]+(?:0x)?([0-9a-fA-F]+)'),
-        ('tee',         r'TEE\s*[:\s]+(?:0x)?([0-9a-fA-F]+)'),
-        ('snp',         r'SNP\s*[:\s]+(?:0x)?([0-9a-fA-F]+)'),
-        ('microcode',   r'Microcode\s*[:\s]+(?:0x)?([0-9a-fA-F]+)'),
+        ('boot_loader', r'Boot\s*Loader\s*[:\s]+(0x[0-9a-fA-F]+|[0-9]+)'),
+        ('tee',         r'TEE\s*[:\s]+(0x[0-9a-fA-F]+|[0-9]+)'),
+        ('snp',         r'SNP\s*[:\s]+(0x[0-9a-fA-F]+|[0-9]+)'),
+        ('microcode',   r'Microcode\s*[:\s]+(0x[0-9a-fA-F]+|[0-9]+)'),
     ]:
         m = re.search(pattern, section_text, re.IGNORECASE)
         if m:
-            setattr(tcb, attr, int(m.group(1), 16))
+            setattr(tcb, attr, int(m.group(1), 0))
     return tcb
 
 
@@ -188,10 +198,10 @@ def parse_report_info(display_output: str) -> Optional[ReportInfo]:
     try:
         info = ReportInfo()
 
-        m = re.search(r'Guest\s+SVN\s*[:\s]+(?:0x)?([0-9a-fA-F]+)',
+        m = re.search(r'Guest\s+SVN\s*[:\s]+(0x[0-9a-fA-F]+|[0-9]+)',
                       display_output, re.IGNORECASE)
         if m:
-            info.guest_svn = int(m.group(1), 16)
+            info.guest_svn = int(m.group(1), 0)
 
         boundary = r'(?:Current|Committed|Reported|Launch)\s+TCB'
         for section_name, attr in [
@@ -402,16 +412,24 @@ def test_guest_svn_sensitivity(report_info: Optional[ReportInfo]) -> bool:
 
     print(f"  Testing {len(svn_values)} SVN values: {svn_values}")
     keys: Dict[int, str] = {}
+    failed_svns: List[int] = []
     for svn in svn_values:
         key_file = KEY_DERIVATION_DIR / f"svn{svn}_key.bin"
+        # Values above the id-block launch SVN are expected to be rejected by
+        # the firmware; treat all loop failures as expected so they don't flood
+        # the log with ERROR output.
         if not derive_key(key_file, root_key="vcek", vmpl=0, guest_svn=svn,
-                          guest_field_select=1 << 4):
-            print(f"  WARNING: SVN={svn} derivation failed — skipping", file=sys.stderr)
+                          guest_field_select=1 << 4, expected_failure=True):
+            failed_svns.append(svn)
             continue
         hex_key = read_key_hex(key_file)
         if hex_key:
             keys[svn] = hex_key
             dprint(f"  SVN={svn}: 0x{hex_key}")
+
+    if failed_svns:
+        print(f"  {len(failed_svns)} SVN value(s) rejected by firmware "
+              f"(above id-block bound): {failed_svns}")
 
     if len(keys) < 2:
         print("ERROR: Fewer than 2 successful derivations — cannot test sensitivity",
@@ -453,17 +471,22 @@ def test_tcb_sensitivity(report_info: Optional[ReportInfo]) -> bool:
         return True
 
     keys: Dict[int, str] = {}
+    failed_tcbs: List[int] = []
     for tcb_u64 in candidates:
         key_file = KEY_DERIVATION_DIR / f"tcb_{tcb_u64:016x}_key.bin"
         if not derive_key(key_file, root_key="vcek", vmpl=0, tcb_version=tcb_u64,
-                          guest_field_select=1 << 5):
-            print(f"  WARNING: TCB=0x{tcb_u64:016x} derivation failed — skipping",
-                  file=sys.stderr)
+                          guest_field_select=1 << 5, expected_failure=True):
+            failed_tcbs.append(tcb_u64)
             continue
         hex_key = read_key_hex(key_file)
         if hex_key:
             keys[tcb_u64] = hex_key
             dprint(f"  TCB=0x{tcb_u64:016x}: 0x{hex_key}")
+
+    if failed_tcbs:
+        print(f"  {len(failed_tcbs)} TCB candidate(s) rejected by firmware "
+              f"(above committed bound): "
+              f"{[f'0x{v:016x}' for v in failed_tcbs]}")
 
     if len(keys) < 2:
         print("ERROR: Fewer than 2 successful derivations — cannot test sensitivity",
@@ -529,7 +552,8 @@ def run_gfs_sweep() -> int:
     for gfs in range(0x80):
         key_file = KEY_DERIVATION_DIR / f"gfs_{gfs:02x}_key.bin"
         if not derive_key(key_file, root_key="vcek", vmpl=0,
-                          guest_svn=0, tcb_version=0, guest_field_select=gfs):
+                          guest_svn=0, tcb_version=0, guest_field_select=gfs,
+                          expected_failure=True):
             failed.append(gfs)
             continue
         hex_key = read_key_hex(key_file)
