@@ -47,9 +47,14 @@ SEV_SNP_OBJECT="sev-snp-guest,id=sev0,cbitpos=51,reduced-phys-bits=1,kernel-hash
 if [ -f "${ID_BLOCK_FILE}" ] && [ -f "${ID_AUTH_FILE}" ]; then
     ID_BLOCK_B64=$(cat "${ID_BLOCK_FILE}")
     ID_AUTH_B64=$(cat "${ID_AUTH_FILE}")
-    SEV_SNP_OBJECT="${SEV_SNP_OBJECT},id-block=${ID_BLOCK_B64},id-auth=${ID_AUTH_B64}"
+    # Extract policy from id-block (bytes 88-95, LE u64) so LAUNCH_START and
+    # LAUNCH_FINISH see the same value; without this QEMU uses its own default.
+    POLICY=$(base64 -d "${ID_BLOCK_FILE}" | python3 -c \
+        "import sys; d=sys.stdin.buffer.read(); print(hex(int.from_bytes(d[88:96],'little')))")
+    SEV_SNP_OBJECT="${SEV_SNP_OBJECT},policy=${POLICY},id-block=${ID_BLOCK_B64},id-auth=${ID_AUTH_B64}"
     dbg "ID block: ${ID_BLOCK_FILE} (present)"
     dbg "ID auth:  ${ID_AUTH_FILE} (present)"
+    dbg "Policy:   ${POLICY} (from id-block)"
 else
     dbg "ID block files not found — launching without ID block"
     dbg "  checked: ${ID_BLOCK_FILE}"
