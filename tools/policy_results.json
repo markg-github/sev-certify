@@ -1,0 +1,637 @@
+{
+  "0x30000": {
+    "result": "PASS",
+    "detail": "ok",
+    "policy_dec": 196608
+  },
+  "0x10000": {
+    "result": "FAIL",
+    "detail": "qemu-system-x86_64: sev_snp_launch_start: SNP_LAUNCH_START ret=-22 fw_error=0 ''\nqemu-system-x86_64: sev_common_kvm_init: failed to create encryption context\nqemu-system-x86_64: failed to initialize k; qemu_exit=1",
+    "policy_dec": 65536
+  },
+  "0x20000": {
+    "result": "FAIL",
+    "detail": "qemu-system-x86_64: sev_snp_launch_start: SNP_LAUNCH_START ret=-5 fw_error=7 'Policy is not allowed'\nqemu-system-x86_64: sev_common_kvm_init: failed to create encryption context\nqemu-system-x86_64: fa; qemu_exit=1",
+    "policy_dec": 131072
+  },
+  "0x30001": {
+    "result": "PASS",
+    "detail": "ok",
+    "policy_dec": 196609
+  },
+  "0x30002": {
+    "result": "PASS",
+    "detail": "ok",
+    "policy_dec": 196610
+  },
+  "0x30004": {
+    "result": "PASS",
+    "detail": "ok",
+    "policy_dec": 196612
+  },
+  "0x30008": {
+    "result": "PASS",
+    "detail": "ok",
+    "policy_dec": 196616
+  },
+  "0x30010": {
+    "result": "PASS",
+    "detail": "ok",
+    "policy_dec": 196624
+  },
+  "0x30020": {
+    "result": "PASS",
+    "detail": "ok",
+    "policy_dec": 196640
+  },
+  "0x30040": {
+    "result": "PASS",
+    "detail": "ok",
+    "policy_dec": 196672
+  },
+  "0x30080": {
+    "result": "PASS",
+    "detail": "ok",
+    "policy_dec": 196736
+  },
+  "0x30100": {
+    "result": "PASS",
+    "detail": "ok",
+    "policy_dec": 196864
+  },
+  "0x30200": {
+    "result": "FAIL",
+    "detail": "qemu-system-x86_64: sev_snp_launch_start: SNP_LAUNCH_START ret=-5 fw_error=7 'Policy is not allowed'\nqemu-system-x86_64: sev_common_kvm_init: failed to create encryption context\nqemu-system-x86_64: fa; qemu_exit=1",
+    "policy_dec": 197120
+  },
+  "0x30400": {
+    "result": "FAIL",
+    "detail": "qemu-system-x86_64: sev_snp_launch_start: SNP_LAUNCH_START ret=-5 fw_error=7 'Policy is not allowed'\nqemu-system-x86_64: sev_common_kvm_init: failed to create encryption context\nqemu-system-x86_64: fa; qemu_exit=1",
+    "policy_dec": 197632
+  },
+  "0x30800": {
+    "result": "FAIL",
+    "detail": "qemu-system-x86_64: sev_snp_launch_start: SNP_LAUNCH_START ret=-5 fw_error=7 'Policy is not allowed'\nqemu-system-x86_64: sev_common_kvm_init: failed to create encryption context\nqemu-system-x86_64: fa; qemu_exit=1",
+    "policy_dec": 198656
+  },
+  "0x31000": {
+    "result": "FAIL",
+    "detail": "qemu-system-x86_64: sev_snp_launch_start: SNP_LAUNCH_START ret=-5 fw_error=7 'Policy is not allowed'\nqemu-system-x86_64: sev_common_kvm_init: failed to create encryption context\nqemu-system-x86_64: fa; qemu_exit=1",
+    "policy_dec": 200704
+  },
+  "0x32000": {
+    "result": "FAIL",
+    "detail": "qemu-system-x86_64: sev_snp_launch_start: SNP_LAUNCH_START ret=-5 fw_error=7 'Policy is not allowed'\nqemu-system-x86_64: sev_common_kvm_init: failed to create encryption context\nqemu-system-x86_64: fa; qemu_exit=1",
+    "policy_dec": 204800
+  },
+  "0x34000": {
+    "result": "FAIL",
+    "detail": "qemu-system-x86_64: sev_snp_launch_start: SNP_LAUNCH_START ret=-5 fw_error=7 'Policy is not allowed'\nqemu-system-x86_64: sev_common_kvm_init: failed to create encryption context\nqemu-system-x86_64: fa; qemu_exit=1",
+    "policy_dec": 212992
+  },
+  "0x38000": {
+    "result": "FAIL",
+    "detail": "qemu-system-x86_64: sev_snp_launch_start: SNP_LAUNCH_START ret=-5 fw_error=7 'Policy is not allowed'\nqemu-system-x86_64: sev_common_kvm_init: failed to create encryption context\nqemu-system-x86_64: fa; qemu_exit=1",
+    "policy_dec": 229376
+  },
+  "0x70000": {
+    "result": "FAIL",
+    "detail": "qemu-system-x86_64: sev_snp_launch_start: SNP_LAUNCH_START ret=-22 fw_error=0 ''\nqemu-system-x86_64: sev_common_kvm_init: failed to create encryption context\nqemu-system-x86_64: failed to initialize k; qemu_exit=1",
+    "policy_dec": 458752
+  },
+  "0xb0000": {
+    "result": "PASS",
+    "detail": "ok",
+    "policy_dec": 720896
+  },
+  "0x130000": {
+    "result": "FAIL",
+    "detail": "qemu-system-x86_64: sev_snp_launch_start: SNP_LAUNCH_START ret=-5 fw_error=7 'Policy is not allowed'\nqemu-system-x86_64: sev_common_kvm_init: failed to create encryption context\nqemu-system-x86_64: fa; qemu_exit=1",
+    "policy_dec": 1245184
+  },
+  "0x230000": {
+    "result": "FAIL",
+    "detail": "qemu-system-x86_64: sev_snp_launch_start: SNP_LAUNCH_START ret=-22 fw_error=0 ''\nqemu-system-x86_64: sev_common_kvm_init: failed to create encryption context\nqemu-system-x86_64: failed to initialize k; qemu_exit=1",
+    "policy_dec": 2293760
+  },
+  "0x430000": {
+    "result": "FAIL",
+    "detail": "qemu-system-x86_64: sev_snp_launch_start: SNP_LAUNCH_START ret=-22 fw_error=0 ''\nqemu-system-x86_64: sev_common_kvm_init: failed to create encryption context\nqemu-system-x86_64: failed to initialize k; qemu_exit=1",
+    "policy_dec": 4390912
+  },
+  "0x830000": {
+    "result": "FAIL",
+    "detail": "qemu-system-x86_64: sev_snp_launch_start: SNP_LAUNCH_START ret=-22 fw_error=0 ''\nqemu-system-x86_64: sev_common_kvm_init: failed to create encryption context\nqemu-system-x86_64: failed to initialize k; qemu_exit=1",
+    "policy_dec": 8585216
+  },
+  "0x1030000": {
+    "result": "FAIL",
+    "detail": "qemu-system-x86_64: sev_snp_launch_start: SNP_LAUNCH_START ret=-22 fw_error=0 ''\nqemu-system-x86_64: sev_common_kvm_init: failed to create encryption context\nqemu-system-x86_64: failed to initialize k; qemu_exit=1",
+    "policy_dec": 16973824
+  },
+  "0x2030000": {
+    "result": "FAIL",
+    "detail": "qemu-system-x86_64: sev_snp_launch_start: SNP_LAUNCH_START ret=-22 fw_error=0 ''\nqemu-system-x86_64: sev_common_kvm_init: failed to create encryption context\nqemu-system-x86_64: failed to initialize k; qemu_exit=1",
+    "policy_dec": 33751040
+  },
+  "0x4030000": {
+    "result": "FAIL",
+    "detail": "qemu-system-x86_64: sev_snp_launch_start: SNP_LAUNCH_START ret=-22 fw_error=0 ''\nqemu-system-x86_64: sev_common_kvm_init: failed to create encryption context\nqemu-system-x86_64: failed to initialize k; qemu_exit=1",
+    "policy_dec": 67305472
+  },
+  "0x8030000": {
+    "result": "FAIL",
+    "detail": "qemu-system-x86_64: sev_snp_launch_start: SNP_LAUNCH_START ret=-22 fw_error=0 ''\nqemu-system-x86_64: sev_common_kvm_init: failed to create encryption context\nqemu-system-x86_64: failed to initialize k; qemu_exit=1",
+    "policy_dec": 134414336
+  },
+  "0x0": {
+    "result": "FAIL",
+    "detail": "qemu-system-x86_64: sev_snp_launch_start: SNP_LAUNCH_START ret=-22 fw_error=0 ''\nqemu-system-x86_64: sev_common_kvm_init: failed to create encryption context\nqemu-system-x86_64: failed to initialize k; qemu_exit=1",
+    "policy_dec": 0
+  },
+  "0xb0001": {
+    "result": "PASS",
+    "detail": "ok",
+    "policy_dec": 720897
+  },
+  "0xb0002": {
+    "result": "PASS",
+    "detail": "ok",
+    "policy_dec": 720898
+  },
+  "0xb0004": {
+    "result": "PASS",
+    "detail": "ok",
+    "policy_dec": 720900
+  },
+  "0xb0008": {
+    "result": "PASS",
+    "detail": "ok",
+    "policy_dec": 720904
+  },
+  "0xb0100": {
+    "result": "PASS",
+    "detail": "ok",
+    "policy_dec": 721152
+  },
+  "0xb0010": {
+    "result": "PASS",
+    "detail": "ok",
+    "policy_dec": 720912
+  },
+  "0xb0020": {
+    "result": "PASS",
+    "detail": "ok",
+    "policy_dec": 720928
+  },
+  "0xb0040": {
+    "result": "PASS",
+    "detail": "ok",
+    "policy_dec": 720960
+  },
+  "0xb0080": {
+    "result": "PASS",
+    "detail": "ok",
+    "policy_dec": 721024
+  },
+  "0xb0200": {
+    "result": "FAIL",
+    "detail": "qemu-system-x86_64: sev_snp_launch_start: SNP_LAUNCH_START ret=-5 fw_error=7 'Policy is not allowed'\nqemu-system-x86_64: sev_common_kvm_init: failed to create encryption context\nqemu-system-x86_64: fa; qemu_exit=1",
+    "policy_dec": 721408
+  },
+  "0xb0400": {
+    "result": "FAIL",
+    "detail": "qemu-system-x86_64: sev_snp_launch_start: SNP_LAUNCH_START ret=-5 fw_error=7 'Policy is not allowed'\nqemu-system-x86_64: sev_common_kvm_init: failed to create encryption context\nqemu-system-x86_64: fa; qemu_exit=1",
+    "policy_dec": 721920
+  },
+  "0xb0800": {
+    "result": "FAIL",
+    "detail": "qemu-system-x86_64: sev_snp_launch_start: SNP_LAUNCH_START ret=-5 fw_error=7 'Policy is not allowed'\nqemu-system-x86_64: sev_common_kvm_init: failed to create encryption context\nqemu-system-x86_64: fa; qemu_exit=1",
+    "policy_dec": 722944
+  },
+  "0xb1000": {
+    "result": "FAIL",
+    "detail": "qemu-system-x86_64: sev_snp_launch_start: SNP_LAUNCH_START ret=-5 fw_error=7 'Policy is not allowed'\nqemu-system-x86_64: sev_common_kvm_init: failed to create encryption context\nqemu-system-x86_64: fa; qemu_exit=1",
+    "policy_dec": 724992
+  },
+  "0xb2000": {
+    "result": "FAIL",
+    "detail": "qemu-system-x86_64: sev_snp_launch_start: SNP_LAUNCH_START ret=-5 fw_error=7 'Policy is not allowed'\nqemu-system-x86_64: sev_common_kvm_init: failed to create encryption context\nqemu-system-x86_64: fa; qemu_exit=1",
+    "policy_dec": 729088
+  },
+  "0xb4000": {
+    "result": "FAIL",
+    "detail": "qemu-system-x86_64: sev_snp_launch_start: SNP_LAUNCH_START ret=-5 fw_error=7 'Policy is not allowed'\nqemu-system-x86_64: sev_common_kvm_init: failed to create encryption context\nqemu-system-x86_64: fa; qemu_exit=1",
+    "policy_dec": 737280
+  },
+  "0xb8000": {
+    "result": "FAIL",
+    "detail": "qemu-system-x86_64: sev_snp_launch_start: SNP_LAUNCH_START ret=-5 fw_error=7 'Policy is not allowed'\nqemu-system-x86_64: sev_common_kvm_init: failed to create encryption context\nqemu-system-x86_64: fa; qemu_exit=1",
+    "policy_dec": 753664
+  },
+  "0xb01ff": {
+    "result": "FAIL",
+    "detail": "qemu-system-x86_64: sev_snp_launch_start: SNP_LAUNCH_START ret=-5 fw_error=7 'Policy is not allowed'\nqemu-system-x86_64: sev_common_kvm_init: failed to create encryption context\nqemu-system-x86_64: fa; qemu_exit=1",
+    "policy_dec": 721407
+  },
+  "0xb000f": {
+    "result": "PASS",
+    "detail": "ok",
+    "policy_dec": 720911
+  },
+  "0xb00f0": {
+    "result": "PASS",
+    "detail": "ok",
+    "policy_dec": 721136
+  },
+  "0xb01f0": {
+    "result": "FAIL",
+    "detail": "qemu-system-x86_64: sev_snp_launch_start: SNP_LAUNCH_START ret=-5 fw_error=7 'Policy is not allowed'\nqemu-system-x86_64: sev_common_kvm_init: failed to create encryption context\nqemu-system-x86_64: fa; qemu_exit=1",
+    "policy_dec": 721392
+  },
+  "0xb010f": {
+    "result": "PASS",
+    "detail": "ok",
+    "policy_dec": 721167
+  },
+  "0xb0110": {
+    "result": "PASS",
+    "detail": "ok",
+    "policy_dec": 721168
+  },
+  "0xb0120": {
+    "result": "PASS",
+    "detail": "ok",
+    "policy_dec": 721184
+  },
+  "0xb0140": {
+    "result": "FAIL",
+    "detail": "qemu-system-x86_64: sev_snp_launch_start: SNP_LAUNCH_START ret=-5 fw_error=7 'Policy is not allowed'\nqemu-system-x86_64: sev_common_kvm_init: failed to create encryption context\nqemu-system-x86_64: fa; qemu_exit=1",
+    "policy_dec": 721216
+  },
+  "0xb0180": {
+    "result": "FAIL",
+    "detail": "qemu-system-x86_64: sev_snp_launch_start: SNP_LAUNCH_START ret=-5 fw_error=7 'Policy is not allowed'\nqemu-system-x86_64: sev_common_kvm_init: failed to create encryption context\nqemu-system-x86_64: fa; qemu_exit=1",
+    "policy_dec": 721280
+  },
+  "0xb0130": {
+    "result": "PASS",
+    "detail": "ok",
+    "policy_dec": 721200
+  },
+  "0xb0150": {
+    "result": "FAIL",
+    "detail": "qemu-system-x86_64: sev_snp_launch_start: SNP_LAUNCH_START ret=-5 fw_error=7 'Policy is not allowed'\nqemu-system-x86_64: sev_common_kvm_init: failed to create encryption context\nqemu-system-x86_64: fa; qemu_exit=1",
+    "policy_dec": 721232
+  },
+  "0xb0190": {
+    "result": "FAIL",
+    "detail": "qemu-system-x86_64: sev_snp_launch_start: SNP_LAUNCH_START ret=-5 fw_error=7 'Policy is not allowed'\nqemu-system-x86_64: sev_common_kvm_init: failed to create encryption context\nqemu-system-x86_64: fa; qemu_exit=1",
+    "policy_dec": 721296
+  },
+  "0xb0160": {
+    "result": "FAIL",
+    "detail": "qemu-system-x86_64: sev_snp_launch_start: SNP_LAUNCH_START ret=-5 fw_error=7 'Policy is not allowed'\nqemu-system-x86_64: sev_common_kvm_init: failed to create encryption context\nqemu-system-x86_64: fa; qemu_exit=1",
+    "policy_dec": 721248
+  },
+  "0xb01a0": {
+    "result": "FAIL",
+    "detail": "qemu-system-x86_64: sev_snp_launch_start: SNP_LAUNCH_START ret=-5 fw_error=7 'Policy is not allowed'\nqemu-system-x86_64: sev_common_kvm_init: failed to create encryption context\nqemu-system-x86_64: fa; qemu_exit=1",
+    "policy_dec": 721312
+  },
+  "0xb01c0": {
+    "result": "FAIL",
+    "detail": "qemu-system-x86_64: sev_snp_launch_start: SNP_LAUNCH_START ret=-5 fw_error=7 'Policy is not allowed'\nqemu-system-x86_64: sev_common_kvm_init: failed to create encryption context\nqemu-system-x86_64: fa; qemu_exit=1",
+    "policy_dec": 721344
+  },
+  "0xb01e0": {
+    "result": "FAIL",
+    "detail": "qemu-system-x86_64: sev_snp_launch_start: SNP_LAUNCH_START ret=-5 fw_error=7 'Policy is not allowed'\nqemu-system-x86_64: sev_common_kvm_init: failed to create encryption context\nqemu-system-x86_64: fa; qemu_exit=1",
+    "policy_dec": 721376
+  },
+  "0xb0170": {
+    "result": "FAIL",
+    "detail": "qemu-system-x86_64: sev_snp_launch_start: SNP_LAUNCH_START ret=-5 fw_error=7 'Policy is not allowed'\nqemu-system-x86_64: sev_common_kvm_init: failed to create encryption context\nqemu-system-x86_64: fa; qemu_exit=1",
+    "policy_dec": 721264
+  },
+  "0xb01b0": {
+    "result": "FAIL",
+    "detail": "qemu-system-x86_64: sev_snp_launch_start: SNP_LAUNCH_START ret=-5 fw_error=7 'Policy is not allowed'\nqemu-system-x86_64: sev_common_kvm_init: failed to create encryption context\nqemu-system-x86_64: fa; qemu_exit=1",
+    "policy_dec": 721328
+  },
+  "0xb01d0": {
+    "result": "FAIL",
+    "detail": "qemu-system-x86_64: sev_snp_launch_start: SNP_LAUNCH_START ret=-5 fw_error=7 'Policy is not allowed'\nqemu-system-x86_64: sev_common_kvm_init: failed to create encryption context\nqemu-system-x86_64: fa; qemu_exit=1",
+    "policy_dec": 721360
+  },
+  "0x30140": {
+    "result": "FAIL",
+    "detail": "qemu-system-x86_64: sev_snp_launch_start: SNP_LAUNCH_START ret=-5 fw_error=7 'Policy is not allowed'\nqemu-system-x86_64: sev_common_kvm_init: failed to create encryption context\nqemu-system-x86_64: fa; qemu_exit=1",
+    "policy_dec": 196928
+  },
+  "0x30180": {
+    "result": "FAIL",
+    "detail": "qemu-system-x86_64: sev_snp_launch_start: SNP_LAUNCH_START ret=-5 fw_error=7 'Policy is not allowed'\nqemu-system-x86_64: sev_common_kvm_init: failed to create encryption context\nqemu-system-x86_64: fa; qemu_exit=1",
+    "policy_dec": 196992
+  },
+  "0x301c0": {
+    "result": "FAIL",
+    "detail": "qemu-system-x86_64: sev_snp_launch_start: SNP_LAUNCH_START ret=-5 fw_error=7 'Policy is not allowed'\nqemu-system-x86_64: sev_common_kvm_init: failed to create encryption context\nqemu-system-x86_64: fa; qemu_exit=1",
+    "policy_dec": 197056
+  },
+  "0x300c0": {
+    "result": "PASS",
+    "detail": "ok",
+    "policy_dec": 196800
+  },
+  "0x30060": {
+    "result": "PASS",
+    "detail": "ok",
+    "policy_dec": 196704
+  },
+  "0x3013f": {
+    "result": "FAIL",
+    "detail": "qemu-system-x86_64: sev_snp_launch_start: SNP_LAUNCH_START ret=-5 fw_error=7 'Policy is not allowed'\nqemu-system-x86_64: sev_common_kvm_init: failed to create encryption context\nqemu-system-x86_64: fa; qemu_exit=1",
+    "policy_dec": 196927
+  },
+  "0x3003f": {
+    "result": "PASS",
+    "detail": "ok",
+    "policy_dec": 196671
+  },
+  "0x301ff": {
+    "result": "FAIL",
+    "detail": "qemu-system-x86_64: sev_snp_launch_start: SNP_LAUNCH_START ret=-5 fw_error=7 'Policy is not allowed'\nqemu-system-x86_64: sev_common_kvm_init: failed to create encryption context\nqemu-system-x86_64: fa; qemu_exit=1",
+    "policy_dec": 197119
+  },
+  "0x30120": {
+    "result": "PASS",
+    "detail": "ok",
+    "policy_dec": 196896
+  },
+  "0x30110": {
+    "result": "PASS",
+    "detail": "ok",
+    "policy_dec": 196880
+  },
+  "0x30130": {
+    "result": "PASS",
+    "detail": "ok",
+    "policy_dec": 196912
+  },
+  "0x3011f": {
+    "result": "PASS",
+    "detail": "ok",
+    "policy_dec": 196895
+  },
+  "0x30138": {
+    "result": "FAIL",
+    "detail": "qemu-system-x86_64: sev_snp_launch_start: SNP_LAUNCH_START ret=-5 fw_error=7 'Policy is not allowed'\nqemu-system-x86_64: sev_common_kvm_init: failed to create encryption context\nqemu-system-x86_64: fa; qemu_exit=1",
+    "policy_dec": 196920
+  },
+  "0x30134": {
+    "result": "PASS",
+    "detail": "ok",
+    "policy_dec": 196916
+  },
+  "0x30132": {
+    "result": "PASS",
+    "detail": "ok",
+    "policy_dec": 196914
+  },
+  "0x30131": {
+    "result": "PASS",
+    "detail": "ok",
+    "policy_dec": 196913
+  },
+  "0x30108": {
+    "result": "PASS",
+    "detail": "ok",
+    "policy_dec": 196872
+  },
+  "0x30118": {
+    "result": "PASS",
+    "detail": "ok",
+    "policy_dec": 196888
+  },
+  "0x30128": {
+    "result": "PASS",
+    "detail": "ok",
+    "policy_dec": 196904
+  },
+  "0x30148": {
+    "result": "FAIL",
+    "detail": "qemu-system-x86_64: sev_snp_launch_start: SNP_LAUNCH_START ret=-5 fw_error=7 'Policy is not allowed'\nqemu-system-x86_64: sev_common_kvm_init: failed to create encryption context\nqemu-system-x86_64: fa; qemu_exit=1",
+    "policy_dec": 196936
+  },
+  "0x30188": {
+    "result": "FAIL",
+    "detail": "qemu-system-x86_64: sev_snp_launch_start: SNP_LAUNCH_START ret=-5 fw_error=7 'Policy is not allowed'\nqemu-system-x86_64: sev_common_kvm_init: failed to create encryption context\nqemu-system-x86_64: fa; qemu_exit=1",
+    "policy_dec": 197000
+  },
+  "0x301c8": {
+    "result": "FAIL",
+    "detail": "qemu-system-x86_64: sev_snp_launch_start: SNP_LAUNCH_START ret=-5 fw_error=7 'Policy is not allowed'\nqemu-system-x86_64: sev_common_kvm_init: failed to create encryption context\nqemu-system-x86_64: fa; qemu_exit=1",
+    "policy_dec": 197064
+  },
+  "0x30135": {
+    "result": "PASS",
+    "detail": "ok",
+    "policy_dec": 196917
+  },
+  "0x30136": {
+    "result": "PASS",
+    "detail": "ok",
+    "policy_dec": 196918
+  },
+  "0x30137": {
+    "result": "FAIL",
+    "detail": "qemu-system-x86_64: sev_snp_launch_start: SNP_LAUNCH_START ret=-5 fw_error=7 'Policy is not allowed'\nqemu-system-x86_64: sev_common_kvm_init: failed to create encryption context\nqemu-system-x86_64: fa; qemu_exit=1",
+    "policy_dec": 196919
+  },
+  "0xb0136": {
+    "result": "PASS",
+    "detail": "ok",
+    "policy_dec": 721206
+  },
+  "0x100b0000": {
+    "result": "FAIL",
+    "detail": "qemu-system-x86_64: sev_snp_launch_start: SNP_LAUNCH_START ret=-22 fw_error=0 ''\nqemu-system-x86_64: sev_common_kvm_init: failed to create encryption context\nqemu-system-x86_64: failed to initialize k; qemu_exit=1",
+    "policy_dec": 269156352
+  },
+  "0x200b0000": {
+    "result": "FAIL",
+    "detail": "qemu-system-x86_64: sev_snp_launch_start: SNP_LAUNCH_START ret=-22 fw_error=0 ''\nqemu-system-x86_64: sev_common_kvm_init: failed to create encryption context\nqemu-system-x86_64: failed to initialize k; qemu_exit=1",
+    "policy_dec": 537591808
+  },
+  "0x400b0000": {
+    "result": "FAIL",
+    "detail": "qemu-system-x86_64: sev_snp_launch_start: SNP_LAUNCH_START ret=-22 fw_error=0 ''\nqemu-system-x86_64: sev_common_kvm_init: failed to create encryption context\nqemu-system-x86_64: failed to initialize k; qemu_exit=1",
+    "policy_dec": 1074462720
+  },
+  "0x800b0000": {
+    "result": "FAIL",
+    "detail": "qemu-system-x86_64: sev_snp_launch_start: SNP_LAUNCH_START ret=-22 fw_error=0 ''\nqemu-system-x86_64: sev_common_kvm_init: failed to create encryption context\nqemu-system-x86_64: failed to initialize k; qemu_exit=1",
+    "policy_dec": 2148204544
+  },
+  "0x1000b0000": {
+    "result": "FAIL",
+    "detail": "qemu-system-x86_64: sev_snp_launch_start: SNP_LAUNCH_START ret=-22 fw_error=0 ''\nqemu-system-x86_64: sev_common_kvm_init: failed to create encryption context\nqemu-system-x86_64: failed to initialize k; qemu_exit=1",
+    "policy_dec": 4295688192
+  },
+  "0x2000b0000": {
+    "result": "FAIL",
+    "detail": "qemu-system-x86_64: sev_snp_launch_start: SNP_LAUNCH_START ret=-22 fw_error=0 ''\nqemu-system-x86_64: sev_common_kvm_init: failed to create encryption context\nqemu-system-x86_64: failed to initialize k; qemu_exit=1",
+    "policy_dec": 8590655488
+  },
+  "0x4000b0000": {
+    "result": "FAIL",
+    "detail": "qemu-system-x86_64: sev_snp_launch_start: SNP_LAUNCH_START ret=-22 fw_error=0 ''\nqemu-system-x86_64: sev_common_kvm_init: failed to create encryption context\nqemu-system-x86_64: failed to initialize k; qemu_exit=1",
+    "policy_dec": 17180590080
+  },
+  "0x8000b0000": {
+    "result": "FAIL",
+    "detail": "qemu-system-x86_64: sev_snp_launch_start: SNP_LAUNCH_START ret=-22 fw_error=0 ''\nqemu-system-x86_64: sev_common_kvm_init: failed to create encryption context\nqemu-system-x86_64: failed to initialize k; qemu_exit=1",
+    "policy_dec": 34360459264
+  },
+  "0x10000b0000": {
+    "result": "FAIL",
+    "detail": "qemu-system-x86_64: sev_snp_launch_start: SNP_LAUNCH_START ret=-22 fw_error=0 ''\nqemu-system-x86_64: sev_common_kvm_init: failed to create encryption context\nqemu-system-x86_64: failed to initialize k; qemu_exit=1",
+    "policy_dec": 68720197632
+  },
+  "0x20000b0000": {
+    "result": "FAIL",
+    "detail": "qemu-system-x86_64: sev_snp_launch_start: SNP_LAUNCH_START ret=-22 fw_error=0 ''\nqemu-system-x86_64: sev_common_kvm_init: failed to create encryption context\nqemu-system-x86_64: failed to initialize k; qemu_exit=1",
+    "policy_dec": 137439674368
+  },
+  "0x40000b0000": {
+    "result": "FAIL",
+    "detail": "qemu-system-x86_64: sev_snp_launch_start: SNP_LAUNCH_START ret=-22 fw_error=0 ''\nqemu-system-x86_64: sev_common_kvm_init: failed to create encryption context\nqemu-system-x86_64: failed to initialize k; qemu_exit=1",
+    "policy_dec": 274878627840
+  },
+  "0x80000b0000": {
+    "result": "FAIL",
+    "detail": "qemu-system-x86_64: sev_snp_launch_start: SNP_LAUNCH_START ret=-22 fw_error=0 ''\nqemu-system-x86_64: sev_common_kvm_init: failed to create encryption context\nqemu-system-x86_64: failed to initialize k; qemu_exit=1",
+    "policy_dec": 549756534784
+  },
+  "0x100000b0000": {
+    "result": "FAIL",
+    "detail": "qemu-system-x86_64: sev_snp_launch_start: SNP_LAUNCH_START ret=-22 fw_error=0 ''\nqemu-system-x86_64: sev_common_kvm_init: failed to create encryption context\nqemu-system-x86_64: failed to initialize k; qemu_exit=1",
+    "policy_dec": 1099512348672
+  },
+  "0x200000b0000": {
+    "result": "FAIL",
+    "detail": "qemu-system-x86_64: sev_snp_launch_start: SNP_LAUNCH_START ret=-22 fw_error=0 ''\nqemu-system-x86_64: sev_common_kvm_init: failed to create encryption context\nqemu-system-x86_64: failed to initialize k; qemu_exit=1",
+    "policy_dec": 2199023976448
+  },
+  "0x400000b0000": {
+    "result": "FAIL",
+    "detail": "qemu-system-x86_64: sev_snp_launch_start: SNP_LAUNCH_START ret=-22 fw_error=0 ''\nqemu-system-x86_64: sev_common_kvm_init: failed to create encryption context\nqemu-system-x86_64: failed to initialize k; qemu_exit=1",
+    "policy_dec": 4398047232000
+  },
+  "0x800000b0000": {
+    "result": "FAIL",
+    "detail": "qemu-system-x86_64: sev_snp_launch_start: SNP_LAUNCH_START ret=-22 fw_error=0 ''\nqemu-system-x86_64: sev_common_kvm_init: failed to create encryption context\nqemu-system-x86_64: failed to initialize k; qemu_exit=1",
+    "policy_dec": 8796093743104
+  },
+  "0x1000000b0000": {
+    "result": "FAIL",
+    "detail": "qemu-system-x86_64: sev_snp_launch_start: SNP_LAUNCH_START ret=-22 fw_error=0 ''\nqemu-system-x86_64: sev_common_kvm_init: failed to create encryption context\nqemu-system-x86_64: failed to initialize k; qemu_exit=1",
+    "policy_dec": 17592186765312
+  },
+  "0x2000000b0000": {
+    "result": "FAIL",
+    "detail": "qemu-system-x86_64: sev_snp_launch_start: SNP_LAUNCH_START ret=-22 fw_error=0 ''\nqemu-system-x86_64: sev_common_kvm_init: failed to create encryption context\nqemu-system-x86_64: failed to initialize k; qemu_exit=1",
+    "policy_dec": 35184372809728
+  },
+  "0x4000000b0000": {
+    "result": "FAIL",
+    "detail": "qemu-system-x86_64: sev_snp_launch_start: SNP_LAUNCH_START ret=-22 fw_error=0 ''\nqemu-system-x86_64: sev_common_kvm_init: failed to create encryption context\nqemu-system-x86_64: failed to initialize k; qemu_exit=1",
+    "policy_dec": 70368744898560
+  },
+  "0x8000000b0000": {
+    "result": "FAIL",
+    "detail": "qemu-system-x86_64: sev_snp_launch_start: SNP_LAUNCH_START ret=-22 fw_error=0 ''\nqemu-system-x86_64: sev_common_kvm_init: failed to create encryption context\nqemu-system-x86_64: failed to initialize k; qemu_exit=1",
+    "policy_dec": 140737489076224
+  },
+  "0x10000000b0000": {
+    "result": "FAIL",
+    "detail": "qemu-system-x86_64: sev_snp_launch_start: SNP_LAUNCH_START ret=-22 fw_error=0 ''\nqemu-system-x86_64: sev_common_kvm_init: failed to create encryption context\nqemu-system-x86_64: failed to initialize k; qemu_exit=1",
+    "policy_dec": 281474977431552
+  },
+  "0x20000000b0000": {
+    "result": "FAIL",
+    "detail": "qemu-system-x86_64: sev_snp_launch_start: SNP_LAUNCH_START ret=-22 fw_error=0 ''\nqemu-system-x86_64: sev_common_kvm_init: failed to create encryption context\nqemu-system-x86_64: failed to initialize k; qemu_exit=1",
+    "policy_dec": 562949954142208
+  },
+  "0x40000000b0000": {
+    "result": "FAIL",
+    "detail": "qemu-system-x86_64: sev_snp_launch_start: SNP_LAUNCH_START ret=-22 fw_error=0 ''\nqemu-system-x86_64: sev_common_kvm_init: failed to create encryption context\nqemu-system-x86_64: failed to initialize k; qemu_exit=1",
+    "policy_dec": 1125899907563520
+  },
+  "0x80000000b0000": {
+    "result": "FAIL",
+    "detail": "qemu-system-x86_64: sev_snp_launch_start: SNP_LAUNCH_START ret=-22 fw_error=0 ''\nqemu-system-x86_64: sev_common_kvm_init: failed to create encryption context\nqemu-system-x86_64: failed to initialize k; qemu_exit=1",
+    "policy_dec": 2251799814406144
+  },
+  "0x100000000b0000": {
+    "result": "FAIL",
+    "detail": "qemu-system-x86_64: sev_snp_launch_start: SNP_LAUNCH_START ret=-22 fw_error=0 ''\nqemu-system-x86_64: sev_common_kvm_init: failed to create encryption context\nqemu-system-x86_64: failed to initialize k; qemu_exit=1",
+    "policy_dec": 4503599628091392
+  },
+  "0x200000000b0000": {
+    "result": "FAIL",
+    "detail": "qemu-system-x86_64: sev_snp_launch_start: SNP_LAUNCH_START ret=-22 fw_error=0 ''\nqemu-system-x86_64: sev_common_kvm_init: failed to create encryption context\nqemu-system-x86_64: failed to initialize k; qemu_exit=1",
+    "policy_dec": 9007199255461888
+  },
+  "0x400000000b0000": {
+    "result": "FAIL",
+    "detail": "qemu-system-x86_64: sev_snp_launch_start: SNP_LAUNCH_START ret=-22 fw_error=0 ''\nqemu-system-x86_64: sev_common_kvm_init: failed to create encryption context\nqemu-system-x86_64: failed to initialize k; qemu_exit=1",
+    "policy_dec": 18014398510202880
+  },
+  "0x800000000b0000": {
+    "result": "FAIL",
+    "detail": "qemu-system-x86_64: sev_snp_launch_start: SNP_LAUNCH_START ret=-22 fw_error=0 ''\nqemu-system-x86_64: sev_common_kvm_init: failed to create encryption context\nqemu-system-x86_64: failed to initialize k; qemu_exit=1",
+    "policy_dec": 36028797019684864
+  },
+  "0x1000000000b0000": {
+    "result": "FAIL",
+    "detail": "qemu-system-x86_64: sev_snp_launch_start: SNP_LAUNCH_START ret=-22 fw_error=0 ''\nqemu-system-x86_64: sev_common_kvm_init: failed to create encryption context\nqemu-system-x86_64: failed to initialize k; qemu_exit=1",
+    "policy_dec": 72057594038648832
+  },
+  "0x2000000000b0000": {
+    "result": "FAIL",
+    "detail": "qemu-system-x86_64: sev_snp_launch_start: SNP_LAUNCH_START ret=-22 fw_error=0 ''\nqemu-system-x86_64: sev_common_kvm_init: failed to create encryption context\nqemu-system-x86_64: failed to initialize k; qemu_exit=1",
+    "policy_dec": 144115188076576768
+  },
+  "0x4000000000b0000": {
+    "result": "FAIL",
+    "detail": "qemu-system-x86_64: sev_snp_launch_start: SNP_LAUNCH_START ret=-22 fw_error=0 ''\nqemu-system-x86_64: sev_common_kvm_init: failed to create encryption context\nqemu-system-x86_64: failed to initialize k; qemu_exit=1",
+    "policy_dec": 288230376152432640
+  },
+  "0x8000000000b0000": {
+    "result": "FAIL",
+    "detail": "qemu-system-x86_64: sev_snp_launch_start: SNP_LAUNCH_START ret=-22 fw_error=0 ''\nqemu-system-x86_64: sev_common_kvm_init: failed to create encryption context\nqemu-system-x86_64: failed to initialize k; qemu_exit=1",
+    "policy_dec": 576460752304144384
+  },
+  "0x10000000000b0000": {
+    "result": "FAIL",
+    "detail": "qemu-system-x86_64: sev_snp_launch_start: SNP_LAUNCH_START ret=-22 fw_error=0 ''\nqemu-system-x86_64: sev_common_kvm_init: failed to create encryption context\nqemu-system-x86_64: failed to initialize k; qemu_exit=1",
+    "policy_dec": 1152921504607567872
+  },
+  "0x20000000000b0000": {
+    "result": "FAIL",
+    "detail": "qemu-system-x86_64: sev_snp_launch_start: SNP_LAUNCH_START ret=-22 fw_error=0 ''\nqemu-system-x86_64: sev_common_kvm_init: failed to create encryption context\nqemu-system-x86_64: failed to initialize k; qemu_exit=1",
+    "policy_dec": 2305843009214414848
+  },
+  "0x40000000000b0000": {
+    "result": "FAIL",
+    "detail": "qemu-system-x86_64: sev_snp_launch_start: SNP_LAUNCH_START ret=-22 fw_error=0 ''\nqemu-system-x86_64: sev_common_kvm_init: failed to create encryption context\nqemu-system-x86_64: failed to initialize k; qemu_exit=1",
+    "policy_dec": 4611686018428108800
+  },
+  "0x80000000000b0000": {
+    "result": "FAIL",
+    "detail": "qemu-system-x86_64: sev_snp_launch_start: SNP_LAUNCH_START ret=-22 fw_error=0 ''\nqemu-system-x86_64: sev_common_kvm_init: failed to create encryption context\nqemu-system-x86_64: failed to initialize k; qemu_exit=1",
+    "policy_dec": 9223372036855496704
+  }
+}
