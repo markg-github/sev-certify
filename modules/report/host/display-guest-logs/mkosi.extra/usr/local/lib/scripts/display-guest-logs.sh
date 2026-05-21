@@ -3,8 +3,7 @@
 GUEST_JOURNAL_LOCATION="/var/log/journal/guest-logs"
 
 # Wait for the SNP Guest to boot up
-# TODO: 25 is a temporarily lower value - change back to at least 60
-TIMEOUT=25
+TIMEOUT=80
 INTERVAL=1
 ELAPSED=0
 
@@ -30,6 +29,8 @@ while [[ $ELAPSED -lt $TIMEOUT ]]; do
     sleep $INTERVAL
     ELAPSED=$((ELAPSED + INTERVAL))
 done
+
+echo "\nTimeout waiting for guest tests to complete."
 
 # If timeout hits but logs are there, then show the logs.
 guest_service_log=$(journalctl -D "${GUEST_JOURNAL_LOCATION}" "${args[@]}" -o cat)
