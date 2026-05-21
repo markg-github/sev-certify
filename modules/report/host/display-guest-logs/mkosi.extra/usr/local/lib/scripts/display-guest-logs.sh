@@ -3,7 +3,8 @@
 GUEST_JOURNAL_LOCATION="/var/log/journal/guest-logs"
 
 # Wait for the SNP Guest to boot up
-TIMEOUT=60
+# TODO: 25 is a temporarily lower value - change back to at least 60
+TIMEOUT=25
 INTERVAL=1
 ELAPSED=0
 
