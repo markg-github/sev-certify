@@ -3,6 +3,7 @@
 and generate id-auth.b64 with the signature and ephemeral ID key."""
 
 import base64
+import os
 import struct
 import sys
 
@@ -39,6 +40,12 @@ def build_ecdsa_pub_key(pub_numbers):
 
 
 def main():
+    # If the measurement file doesn't exist, calculate-measurement.service
+    # was skipped (e.g. AMDSEV OVMF not present).  Nothing to do.
+    if not os.path.exists(MEASUREMENT_FILE):
+        print(f"INFO: {MEASUREMENT_FILE} not found — skipping ID block generation")
+        sys.exit(0)
+
     # Read measurement (format: 0x<96 hex chars> = 48 raw bytes)
     measurement_text = open(MEASUREMENT_FILE).read().strip()
     hex_str = measurement_text.removeprefix("0x")
