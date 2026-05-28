@@ -4,7 +4,7 @@ BOOT_LOG_DIR="/var/log/journal/guest-logs"
 GUEST_ERROR_LOG="/tmp/guest-error.log"
 
 # Wait for the SNP Guest to boot up
-TIMEOUT=60
+TIMEOUT=600
 INTERVAL=1
 ELAPSED=0
 
