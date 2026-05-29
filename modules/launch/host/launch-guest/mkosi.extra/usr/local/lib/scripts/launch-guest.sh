@@ -80,6 +80,7 @@ QEMU_CMD=(
     -object "${SEV_SNP_OBJECT}"
     -bios "${OVMF_PATH}"
     -kernel "${EFI_PATH}"
+    -serial file:/tmp/guest-console.log
 )
 
 # Append any extra QEMU options (word-split intentionally)
