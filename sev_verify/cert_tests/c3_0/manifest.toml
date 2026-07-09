@@ -20,3 +20,12 @@ module = "cert_tests.c3_0.c3_0_0_1.snphost_config_commit"
 scope = "mixed"
 level = "3.0.0-1"
 host_changes = true
+
+# ── Level 3.0.0-2 ───────────────────────────────────────────
+
+[[tests]]
+name = "key-derivation"
+description = "Launch SEV-SNP guest and run key derivation tests"
+module = "cert_tests.c3_0.c3_0_0_2.key_derivation_test"
+scope = "mixed"
+level = "3.0.0-2"
