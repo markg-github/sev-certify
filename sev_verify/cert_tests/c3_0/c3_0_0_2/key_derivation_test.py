@@ -14,10 +14,9 @@ committed TCB bounds, which drive the SVN and TCB loops dynamically.
 All snpguest key commands run on the guest via vsock from callable
 steps on the host — no guest-side script is needed.
 
-Above-bound TCB tests use value=255 per component (max 8-bit value).
-This is assumed to exceed the committed bound on all real platforms.
-If a component's committed value ever reaches 255, the negative test
-would instead be a valid derivation — the error message notes this.
+Above-bound TCB tests use committed+1, committed+2, committed+3 per
+component, derived from the runtime attestation report. No static
+assumption about platform TCB values is needed.
 
 When sev_verify.id_block is available (from the ID block PR), the guest
 is launched with an ID block, giving richer coverage (non-zero guest SVN,
@@ -48,7 +47,7 @@ vm_profile = VMProfile(
     memory_mb=2048,
 )
 
-_TCB_ABOVE_BOUND = 255  # assumed to exceed committed bound on all real platforms
+_TCB_ABOVE_BOUND_STEPS = 3  # number of values above committed bound to test per component
 
 
 # ── TCB / report parsing helpers ──────────────────────────────────────────────
@@ -285,33 +284,35 @@ def test_tcb(ctx: StepContext) -> StepHandlerResult:
     lines = [f"Committed TCB: bl={c.boot_loader} tee={c.tee} snp={c.snp} mc={c.microcode}"]
     passed = True
 
-    # Above-bound: value=255 per component must be rejected
-    _caveat = (f"NOTE: if committed value for this component is {_TCB_ABOVE_BOUND}, "
-               f"this negative test assumption no longer holds on this platform.")
-    if info.version == 2:
-        for comp, label, max_val in [
-            ("boot_loader", "Boot Loader", c.boot_loader),
-            ("tee",         "TEE",         c.tee),
-            ("snp",         "SNP",         c.snp),
-            ("microcode",   "Microcode",   c.microcode),
-        ]:
-            tcb_u64 = TcbVersion(**{comp: _TCB_ABOVE_BOUND}).to_u64()
-            ok, _ = _derive_key(ctx, f"tcb_above_{comp}.bin",
+    # Above-bound: committed+1 .. committed+N per component must all be rejected.
+    for comp, label, max_val in [
+        ("boot_loader", "Boot Loader", c.boot_loader),
+        ("tee",         "TEE",         c.tee),
+        ("snp",         "SNP",         c.snp),
+        ("microcode",   "Microcode",   c.microcode),
+    ]:
+        above_vals = [v for v in range(max_val + 1, max_val + _TCB_ABOVE_BOUND_STEPS + 1)
+                      if v <= 0xFF]
+        if not above_vals:
+            lines.append(f"{label}: committed={max_val} is max (0xFF) — no above-bound values to test")
+            continue
+        for val in above_vals:
+            tcb_u64 = TcbVersion(**{comp: val}).to_u64()
+            ok, _ = _derive_key(ctx, f"tcb_above_{comp}_{val}.bin",
                                 tcb=tcb_u64, gfs=1 << 5)
             if ok:
-                lines.append(f"FAIL: {label}={_TCB_ABOVE_BOUND} succeeded — "
-                              f"bound ({max_val}) not enforced. {_caveat}")
+                lines.append(f"FAIL: {label}={val} succeeded — "
+                             f"bound ({max_val}) not enforced")
                 passed = False
             else:
-                lines.append(f"Bound enforced: {label}={_TCB_ABOVE_BOUND} correctly rejected")
-    else:
-        lines.append("Skipping TCB bound check: report version unknown or unexpected")
+                lines.append(f"Bound enforced: {label}={val} correctly rejected")
 
     if not passed:
         return StepHandlerResult(exit_code=1, stderr="\n".join(lines))
 
-    # Sensitivity: vary each component from 0 to its committed maximum
-    keys = {}
+    # Sensitivity: vary each component from 0 to its committed maximum.
+    # Track by tcb_u64 to deduplicate (e.g. val=0 for any component gives the same u64).
+    keys: dict[int, bytes] = {}  # tcb_u64 -> key bytes
     for comp, max_val in [
         ("boot_loader", c.boot_loader),
         ("tee",         c.tee),
@@ -320,21 +321,23 @@ def test_tcb(ctx: StepContext) -> StepHandlerResult:
     ]:
         for val in range(0, max_val + 1):
             tcb_u64 = TcbVersion(**{comp: val}).to_u64()
+            if tcb_u64 in keys:
+                continue  # already derived this exact TCB value
             fname = f"tcb_{comp}_{val}.bin"
             ok, err = _derive_key(ctx, fname, tcb=tcb_u64, gfs=1 << 5)
             if ok:
                 k = _read_key(ctx.artifact_dir / fname)
                 if k:
-                    keys[fname] = k
+                    keys[tcb_u64] = k
             else:
-                lines.append(f"TCB {comp}={val} rejected (unexpected): {err}")
+                lines.append(f"TCB {comp}={val} (u64=0x{tcb_u64:016x}) rejected (unexpected): {err}")
 
     if len(keys) < 2:
         lines.append("TCB sensitivity N/A — all committed components are zero")
         return StepHandlerResult(exit_code=0, stdout="\n".join(lines))
 
     if len(set(keys.values())) == len(keys):
-        lines.append(f"All {len(keys)} TCB values produce distinct keys")
+        lines.append(f"All {len(keys)} distinct TCB values produce distinct keys")
         return StepHandlerResult(exit_code=0, stdout="\n".join(lines))
     return StepHandlerResult(exit_code=1, stderr="\n".join(lines) + "\nSome TCB values produce identical keys")
 
