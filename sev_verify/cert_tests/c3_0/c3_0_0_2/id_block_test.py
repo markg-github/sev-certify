@@ -26,7 +26,7 @@ from cryptography.hazmat.primitives.serialization import (
     PrivateFormat,
 )
 
-from sev_verify.id_block import (
+from sev_verify.cvm_props import (
     DEFAULT_FAMILY_ID,
     DEFAULT_GUEST_SVN,
     DEFAULT_IMAGE_ID,
