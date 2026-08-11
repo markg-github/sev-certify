@@ -204,8 +204,13 @@ def set_bad_measurement(ctx: StepContext) -> StepHandlerResult:
         return StepHandlerResult(exit_code=1, stderr="guest_measurement.txt not found")
 
     real = measurement_file.read_text().strip()
-    # Flip the first byte to guarantee mismatch while keeping the same length
-    flipped = ("00" if real[:2] != "00" else "ff") + real[2:]
+    # Flip the first hex byte after any 0x prefix
+    if real.lower().startswith("0x"):
+        prefix, hex_body = real[:2], real[2:]
+    else:
+        prefix, hex_body = "", real
+    flipped_byte = "00" if hex_body[:2].lower() != "00" else "ff"
+    flipped = prefix + flipped_byte + hex_body[2:]
 
     policy = os.environ.get("ID_BLOCK_POLICY", DEFAULT_POLICY)
     hr = _regenerate_id_block(ctx, flipped, policy)
@@ -348,6 +353,11 @@ def steps() -> list[BaseStep]:
             expected_result="exit_code:1",
             timeout=300,
         ),
+        Step.for_vm_stop(
+            name="Stop VM (after bad measurement)",
+            type="info",
+            timeout=60,
+        ),
 
         # ── Negative: incompatible policy (SMT=0 on SMT-active host) ──
         Step.for_callable(
@@ -362,6 +372,11 @@ def steps() -> list[BaseStep]:
             expected_result="exit_code:1",
             timeout=300,
         ),
+        Step.for_vm_stop(
+            name="Stop VM (after SMT policy)",
+            type="info",
+            timeout=60,
+        ),
 
         # ── Negative: impossible ABI version ──
         Step.for_callable(
@@ -375,5 +390,10 @@ def steps() -> list[BaseStep]:
             type="required",
             expected_result="exit_code:1",
             timeout=300,
+        ),
+        Step.for_vm_stop(
+            name="Stop VM (after ABI version)",
+            type="info",
+            timeout=60,
         ),
     ]
