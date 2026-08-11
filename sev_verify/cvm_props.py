@@ -20,11 +20,13 @@ is typed "setup" — the remaining steps are skipped cleanly.
 
 from __future__ import annotations
 
+import string
 import subprocess
 import tempfile
 from dataclasses import replace
 from pathlib import Path
 
+# may need to change this library
 from cryptography.hazmat.primitives.asymmetric import ec
 from cryptography.hazmat.primitives.serialization import (
     Encoding,
@@ -43,6 +45,58 @@ DEFAULT_FAMILY_ID = "sev-certify-fam0"
 DEFAULT_IMAGE_ID = "sev-certify-img0"
 DEFAULT_GUEST_SVN = "48"
 DEFAULT_POLICY = "0xb0000"
+
+# The SNP attestation report MEASUREMENT field is 48 bytes, so the hex form is
+# 96 characters.  Fixed by the SNP spec, not by configuration.
+MEASUREMENT_HEX_LEN = 96
+
+
+class MeasurementError(Exception):
+    """Base class for problems reading guest_measurement.txt."""
+
+
+class MeasurementMissing(MeasurementError):
+    """guest_measurement.txt does not exist."""
+
+
+class MeasurementMalformed(MeasurementError):
+    """guest_measurement.txt exists but does not hold a 48-byte hex digest."""
+
+
+def read_measurement(artifact_dir: Path) -> str:
+    """Read guest_measurement.txt and return the bare (unprefixed) hex digest.
+
+    Validation lives here, at the point of use, rather than in
+    calculate_measurement.  A check at write time says nothing about what a
+    later step is about to read: the steps are separated in time, so the file
+    can change (or be replaced) in between.
+
+    snpguest writes the digest 0x-prefixed under ``--output-format hex``.  The
+    prefix is stripped here so callers operate on a bare body; re-add it with
+    ``f"0x{...}"`` when handing the value back to snpguest, which decodes an
+    unprefixed string as base64 rather than hex.
+
+    Raises:
+        MeasurementMissing: the file is absent.
+        MeasurementMalformed: the file is present but not a 48-byte hex digest.
+    """
+    measurement_file = artifact_dir / _MEASUREMENT_FILE
+    try:
+        raw = measurement_file.read_text().strip()
+    except FileNotFoundError as exc:
+        raise MeasurementMissing(f"{_MEASUREMENT_FILE} not found") from exc
+
+    body = raw[2:] if raw[:2].lower() == "0x" else raw
+    if len(body) != MEASUREMENT_HEX_LEN:
+        raise MeasurementMalformed(
+            f"{_MEASUREMENT_FILE}: expected a {MEASUREMENT_HEX_LEN}-character hex "
+            f"digest (48 bytes), got {len(body)} characters"
+        )
+    if not all(c in string.hexdigits for c in body):
+        raise MeasurementMalformed(
+            f"{_MEASUREMENT_FILE}: contains non-hex characters"
+        )
+    return body
 
 
 def calculate_measurement(ctx: StepContext) -> StepHandlerResult:
@@ -99,17 +153,21 @@ def generate_id_block(ctx: StepContext) -> StepHandlerResult:
     If guest_measurement.txt is absent (calculate_measurement was skipped or
     failed), this step exits 0 and leaves ctx.profile unchanged, so vm_launch
     proceeds without an ID block.
+
+    A file that is present but malformed is a different case and fails the
+    step: absence is an expected configuration, corruption is not.
     """
     import os
 
-    measurement_file = ctx.artifact_dir / _MEASUREMENT_FILE
-    if not measurement_file.exists():
+    try:
+        measurement = read_measurement(ctx.artifact_dir)
+    except MeasurementMissing as exc:
         return StepHandlerResult(
             exit_code=0,
-            stdout=f"INFO: {_MEASUREMENT_FILE} not found — skipping ID block generation",
+            stdout=f"INFO: {exc} — skipping ID block generation",
         )
-
-    measurement = measurement_file.read_text().strip()
+    except MeasurementMalformed as exc:
+        return StepHandlerResult(exit_code=1, stderr=str(exc))
 
     family_id = os.environ.get("ID_BLOCK_FAMILY_ID", DEFAULT_FAMILY_ID)
     image_id = os.environ.get("ID_BLOCK_IMAGE_ID", DEFAULT_IMAGE_ID)
@@ -137,7 +195,7 @@ def generate_id_block(ctx: StepContext) -> StepHandlerResult:
                 "snpguest", "generate", "id-block",
                 str(id_key_path),
                 str(auth_key_path),
-                measurement,
+                f"0x{measurement}",
                 "--family-id", family_id,
                 "--image-id", image_id,
                 "--svn", guest_svn,
@@ -165,7 +223,7 @@ def generate_id_block(ctx: StepContext) -> StepHandlerResult:
     return StepHandlerResult(
         exit_code=0,
         stdout=(
-            f"Generated ID block for measurement {measurement[:18]}...\n"
+            f"Generated ID block for measurement {measurement[:16]}...\n"
             f"  family_id={family_id} image_id={image_id} svn={guest_svn} policy={policy}"
         ),
     )

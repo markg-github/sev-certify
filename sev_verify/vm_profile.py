@@ -109,7 +109,7 @@ class VMProfile:
     policy: str | int | None = None
     auth_key_enabled: bool = False
     kernel_hashes: bool = True
-    # ID block parameters — set by generate_id_block() in sev_verify.id_block.
+    # ID block parameters — set by generate_id_block() in sev_verify.cvm_props.
     id_block: str | None = None
     id_auth: str | None = None
     # Fixed SEV-SNP parameters used by the existing launch scripts.
