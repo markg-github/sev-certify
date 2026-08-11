@@ -175,10 +175,12 @@ def run_vm_launch_step(
         launch = profile.vm_launch()
     except VMLaunchError as exc:
         duration_ms = int((time.monotonic() - start) * 1000)
+        passed = _check_expected_values(step, 1, str(exc))
         return (
             StepResult(
                 step=step,
-                result="error",
+                result="pass" if passed else "error",
+                exit_code=1,
                 stderr=str(exc),
                 duration_ms=duration_ms,
             ),
