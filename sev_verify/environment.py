@@ -7,6 +7,7 @@ import platform
 import shutil
 import subprocess
 
+from . import snpguest_caps
 from .os_info import get_host_os_info
 
 
@@ -85,9 +86,14 @@ def detect_environment(
     All detection is best-effort: failures produce ``None`` values.
     """
     host_os = get_host_os_info()
+    caps = snpguest_caps.detect()
     return {
         "qemu_version": _get_qemu_version(qemu_binary),
         "qemu_binary": qemu_binary,
+        # snpguest --version is ambiguous across builds, so record the probed
+        # behavior profile alongside it. See sev_verify/snpguest_caps.py.
+        "snpguest_version": caps.version,
+        "snpguest_profile": caps.profile,
         "kernel_version": _get_kernel_version(),
         "ovmf_version": _get_ovmf_version(ovmf_path) if ovmf_path else None,
         "ovmf_path": ovmf_path,

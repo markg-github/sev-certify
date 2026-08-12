@@ -85,9 +85,17 @@ def write_json(
     levels_out = []
     for level in cr.certification.all_levels:
         trs = tests_by_level.get(level, [])
-        level_result = "pass" if all(t.result == "pass" for t in trs) else "fail"
         if not trs:
             level_result = "skip"
+        elif any(t.result in ("fail", "error") for t in trs):
+            level_result = "fail"
+        elif any(t.result == "skip" for t in trs):
+            # At least one test was unassessable (e.g. unvalidated tooling) and
+            # nothing failed. The level is not achieved, but reporting "fail"
+            # would blame the platform for a gap in our own tooling.
+            level_result = "skip"
+        else:
+            level_result = "pass"
         levels_out.append({
             "level": level,
             "result": level_result,

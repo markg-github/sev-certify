@@ -345,6 +345,18 @@ def run_callable_step(step: BaseStep, ctx: StepContext) -> StepResult:
             duration_ms=duration_ms,
         )
 
+    if hr.unsupported:
+        # Not assessable — bypass expected_result entirely. The caller decides
+        # what a skipped setup step means for the rest of the test.
+        return StepResult(
+            step=step,
+            result="skip",
+            exit_code=hr.exit_code,
+            stdout=hr.stdout or None,
+            stderr=hr.stderr or None,
+            duration_ms=duration_ms,
+        )
+
     passed = _check_expected_values(step, hr.exit_code, hr.stdout)
     return StepResult(
         step=step,

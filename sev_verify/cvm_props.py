@@ -34,6 +34,7 @@ from cryptography.hazmat.primitives.serialization import (
     PrivateFormat,
 )
 
+from . import snpguest_caps
 from .models import StepContext, StepHandlerResult
 from .vm_profile import VMProfile, VMProfileError
 
@@ -99,6 +100,47 @@ def read_measurement(artifact_dir: Path) -> str:
     return body
 
 
+def check_snpguest_id_block_support(ctx: StepContext) -> StepHandlerResult:
+    """Gate a test on snpguest exposing an ID block contract we have validated.
+
+    Include this as the first ``setup`` step of any test that *requires* a
+    working ID block. On an unvalidated snpguest the test reports "skip" — the
+    platform was never exercised, so calling it a failure would blame the
+    hardware for a gap in our tooling. ``--try-anyway`` overrides.
+
+    Tests that merely *benefit* from an ID block should not use this step;
+    :func:`generate_id_block` degrades to launching without one instead.
+    """
+    caps = snpguest_caps.detect()
+    where = f"snpguest={caps.version or 'unknown'}"
+
+    if caps.supported:
+        return StepHandlerResult(
+            exit_code=0,
+            stdout=f"snpguest ID block support: {caps.profile} ({where})",
+        )
+
+    if ctx.cli_try_anyway:
+        return StepHandlerResult(
+            exit_code=0,
+            stdout=(
+                f"WARNING: unvalidated snpguest ({where}): {caps.reason}. "
+                f"Proceeding because --try-anyway was given; failures below may "
+                f"reflect the tool rather than the platform."
+            ),
+        )
+
+    return StepHandlerResult(
+        exit_code=0,
+        unsupported=True,
+        stderr=(
+            f"Unvalidated snpguest ({where}): {caps.reason}.\n"
+            f"Validated profiles: {', '.join(sorted(snpguest_caps.SUPPORTED_PROFILES))}.\n"
+            f"Re-run with --try-anyway to attempt regardless."
+        ),
+    )
+
+
 def calculate_measurement(ctx: StepContext) -> StepHandlerResult:
     """Calculate the expected guest launch measurement via snpguest.
 
@@ -156,8 +198,23 @@ def generate_id_block(ctx: StepContext) -> StepHandlerResult:
 
     A file that is present but malformed is a different case and fails the
     step: absence is an expected configuration, corruption is not.
+
+    Likewise, if snpguest exposes an ID block contract we have not validated,
+    this step exits 0 and the guest launches without an ID block — the same
+    additive degradation. Tests that *require* the ID block should gate on
+    :func:`check_snpguest_id_block_support` instead.
     """
     import os
+
+    caps = snpguest_caps.detect()
+    if not caps.supported and not ctx.cli_try_anyway:
+        return StepHandlerResult(
+            exit_code=0,
+            stdout=(
+                f"INFO: unvalidated snpguest ({caps.reason}) — "
+                f"skipping ID block generation (use --try-anyway to override)"
+            ),
+        )
 
     try:
         measurement = read_measurement(ctx.artifact_dir)
@@ -173,6 +230,10 @@ def generate_id_block(ctx: StepContext) -> StepHandlerResult:
     image_id = os.environ.get("ID_BLOCK_IMAGE_ID", DEFAULT_IMAGE_ID)
     guest_svn = os.environ.get("ID_BLOCK_GUEST_SVN", DEFAULT_GUEST_SVN)
     policy = os.environ.get("ID_BLOCK_POLICY", DEFAULT_POLICY)
+
+    # Same 16 bytes either way; only the CLI spelling differs by snpguest build.
+    family_id_arg = snpguest_caps.encode_id_field(family_id, caps.family_id_encoding)
+    image_id_arg = snpguest_caps.encode_id_field(image_id, caps.family_id_encoding)
 
     id_key = ec.generate_private_key(ec.SECP384R1())
     auth_key = ec.generate_private_key(ec.SECP384R1())
@@ -196,8 +257,8 @@ def generate_id_block(ctx: StepContext) -> StepHandlerResult:
                 str(id_key_path),
                 str(auth_key_path),
                 f"0x{measurement}",
-                "--family-id", family_id,
-                "--image-id", image_id,
+                "--family-id", family_id_arg,
+                "--image-id", image_id_arg,
                 "--svn", guest_svn,
                 "--policy", policy,
                 "--id-file", str(id_block_file),
