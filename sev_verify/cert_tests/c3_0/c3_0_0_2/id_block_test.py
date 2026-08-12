@@ -31,8 +31,10 @@ from sev_verify.cvm_props import (
     DEFAULT_GUEST_SVN,
     DEFAULT_IMAGE_ID,
     DEFAULT_POLICY,
+    MeasurementError,
     calculate_measurement,
     generate_id_block,
+    read_measurement,
 )
 from sev_verify.models import BaseStep, Step, StepContext, StepHandlerResult
 from sev_verify.vm_profile import VMProfile
@@ -146,7 +148,11 @@ def verify_id_block_fields(ctx: StepContext) -> StepHandlerResult:
 def _regenerate_id_block(
     ctx: StepContext, measurement: str, policy: str,
 ) -> StepHandlerResult:
-    """Generate a fresh ID block with the given measurement and policy, update ctx.profile."""
+    """Generate a fresh ID block with the given measurement and policy, update ctx.profile.
+
+    ``measurement`` must be in snpguest's input form — 0x-prefixed hex.  An
+    unprefixed string is decoded as base64, not hex.
+    """
     family_id = os.environ.get("ID_BLOCK_FAMILY_ID", DEFAULT_FAMILY_ID)
     image_id = os.environ.get("ID_BLOCK_IMAGE_ID", DEFAULT_IMAGE_ID)
     guest_svn = os.environ.get("ID_BLOCK_GUEST_SVN", DEFAULT_GUEST_SVN)
@@ -199,26 +205,22 @@ def _regenerate_id_block(
 
 def set_bad_measurement(ctx: StepContext) -> StepHandlerResult:
     """Regenerate the ID block with a corrupted measurement to cause digest mismatch."""
-    measurement_file = ctx.artifact_dir / "guest_measurement.txt"
-    if not measurement_file.exists():
-        return StepHandlerResult(exit_code=1, stderr="guest_measurement.txt not found")
+    try:
+        real = read_measurement(ctx.artifact_dir)
+    except MeasurementError as exc:
+        return StepHandlerResult(exit_code=1, stderr=str(exc))
 
-    real = measurement_file.read_text().strip()
-    # Flip the first hex byte after any 0x prefix
-    if real.lower().startswith("0x"):
-        prefix, hex_body = real[:2], real[2:]
-    else:
-        prefix, hex_body = "", real
-    flipped_byte = "00" if hex_body[:2].lower() != "00" else "ff"
-    flipped = prefix + flipped_byte + hex_body[2:]
+    # Flip the first byte of the digest
+    flipped_byte = "00" if real[:2].lower() != "00" else "ff"
+    flipped = flipped_byte + real[2:]
 
     policy = os.environ.get("ID_BLOCK_POLICY", DEFAULT_POLICY)
-    hr = _regenerate_id_block(ctx, flipped, policy)
+    hr = _regenerate_id_block(ctx, f"0x{flipped}", policy)
     if hr.exit_code != 0:
         return hr
     return StepHandlerResult(
         exit_code=0,
-        stdout=f"Set bad measurement: {flipped[:18]}... (real: {real[:18]}...)",
+        stdout=f"Set bad measurement: {flipped[:16]}... (real: {real[:16]}...)",
     )
 
 
@@ -242,17 +244,17 @@ def set_incompatible_policy(ctx: StepContext) -> StepHandlerResult:
             stderr="SMT is not active on this host; cannot test SMT policy incompatibility",
         )
 
-    measurement_file = ctx.artifact_dir / "guest_measurement.txt"
-    if not measurement_file.exists():
-        return StepHandlerResult(exit_code=1, stderr="guest_measurement.txt not found")
+    try:
+        measurement = read_measurement(ctx.artifact_dir)
+    except MeasurementError as exc:
+        return StepHandlerResult(exit_code=1, stderr=str(exc))
 
-    measurement = measurement_file.read_text().strip()
     policy = os.environ.get("ID_BLOCK_POLICY", DEFAULT_POLICY)
     policy_int = int(policy, 0)
     # Clear SMT bit (16) — guest demands no SMT, but host has SMT active
     incompatible_policy = hex(policy_int & ~(1 << 16))
 
-    hr = _regenerate_id_block(ctx, measurement, incompatible_policy)
+    hr = _regenerate_id_block(ctx, f"0x{measurement}", incompatible_policy)
     if hr.exit_code != 0:
         return hr
     return StepHandlerResult(
@@ -268,18 +270,18 @@ def set_bad_abi_version(ctx: StepContext) -> StepHandlerResult:
     ABI version required.  Setting it to 255 guarantees the firmware cannot
     satisfy the requirement on any current platform.
     """
-    measurement_file = ctx.artifact_dir / "guest_measurement.txt"
-    if not measurement_file.exists():
-        return StepHandlerResult(exit_code=1, stderr="guest_measurement.txt not found")
+    try:
+        measurement = read_measurement(ctx.artifact_dir)
+    except MeasurementError as exc:
+        return StepHandlerResult(exit_code=1, stderr=str(exc))
 
-    measurement = measurement_file.read_text().strip()
     policy = os.environ.get("ID_BLOCK_POLICY", DEFAULT_POLICY)
     policy_int = int(policy, 0)
     # Set ABI_MAJOR (bits 15:8) to 255
     bad_policy = (policy_int & ~0xFF00) | (0xFF << 8)
     bad_policy_hex = hex(bad_policy)
 
-    hr = _regenerate_id_block(ctx, measurement, bad_policy_hex)
+    hr = _regenerate_id_block(ctx, f"0x{measurement}", bad_policy_hex)
     if hr.exit_code != 0:
         return hr
     return StepHandlerResult(
