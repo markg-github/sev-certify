@@ -13,7 +13,6 @@ Negative path: attempt three launches that must fail:
 from __future__ import annotations
 
 import os
-import re
 import subprocess
 import tempfile
 from dataclasses import replace
@@ -26,6 +25,7 @@ from cryptography.hazmat.primitives.serialization import (
     PrivateFormat,
 )
 
+from sev_verify import attestation_report
 from sev_verify.cvm_props import (
     DEFAULT_FAMILY_ID,
     DEFAULT_GUEST_SVN,
@@ -45,91 +45,49 @@ vm_profile = VMProfile(
 )
 
 
-# ── Report parsing (snpguest display report) ──────────────────────────────────
-
-
-def _parse_hex_line(text: str) -> bytes:
-    """Parse space-separated hex bytes like '73 65 76 ...' into bytes."""
-    return bytes(int(b, 16) for b in text.strip().split())
-
-
-def _parse_report_field(display_output: str, pattern: str) -> str | None:
-    m = re.search(pattern, display_output, re.IGNORECASE | re.MULTILINE)
-    return m.group(1).strip() if m else None
+# ── Report field verification ─────────────────────────────────────────────────
 
 
 def verify_id_block_fields(ctx: StepContext) -> StepHandlerResult:
-    """Parse the attestation report and compare ID block fields to expected values."""
-    report_file = ctx.artifact_dir / "report.bin"
-    if not report_file.exists():
-        return StepHandlerResult(exit_code=1, stderr="report.bin not found")
+    """Compare ID block fields in the hardware attestation report to expectations.
 
-    result = subprocess.run(
-        ["snpguest", "display", "report", str(report_file)],
-        capture_output=True, text=True, check=False,
-    )
-    if result.returncode != 0:
-        return StepHandlerResult(
-            exit_code=1,
-            stderr=f"snpguest display report failed:\n{result.stderr}",
-        )
-
-    output = result.stdout
-    errors = []
+    Reads report.bin directly (see :mod:`sev_verify.attestation_report`) rather
+    than parsing ``snpguest display report`` output, so the check does not
+    depend on a CLI's human-readable formatting.
+    """
+    try:
+        report = attestation_report.read(ctx.artifact_dir / "report.bin")
+    except attestation_report.ReportError as exc:
+        return StepHandlerResult(exit_code=1, stderr=str(exc))
 
     family_id = os.environ.get("ID_BLOCK_FAMILY_ID", DEFAULT_FAMILY_ID)
     image_id = os.environ.get("ID_BLOCK_IMAGE_ID", DEFAULT_IMAGE_ID)
     guest_svn = int(os.environ.get("ID_BLOCK_GUEST_SVN", DEFAULT_GUEST_SVN))
-    policy = os.environ.get("ID_BLOCK_POLICY", DEFAULT_POLICY)
-    policy_int = int(policy, 0)
+    policy_int = int(os.environ.get("ID_BLOCK_POLICY", DEFAULT_POLICY), 0)
 
-    # Guest SVN
-    svn_str = _parse_report_field(output, r"Guest\s+SVN\s*:\s*(0x[0-9a-fA-F]+|\d+)")
-    if svn_str is not None:
-        report_svn = int(svn_str, 0)
-        if report_svn != guest_svn:
-            errors.append(f"guest_svn: expected {guest_svn}, got {report_svn}")
-    else:
-        errors.append("guest_svn: not found in report")
+    expected_family = family_id.encode("ascii").ljust(16, b"\x00")
+    expected_image = image_id.encode("ascii").ljust(16, b"\x00")
 
-    # Policy — snpguest prints "Guest Policy (0x<hex>):"
-    policy_str = _parse_report_field(output, r"Guest\s+Policy\s*\(\s*(0x[0-9a-fA-F]+)\s*\)")
-    if policy_str is not None:
-        report_policy = int(policy_str, 16)
-        if report_policy != policy_int:
-            errors.append(f"policy: expected {hex(policy_int)}, got {hex(report_policy)}")
-    else:
-        errors.append("policy: not found in report")
-
-    # Family ID — snpguest prints hex bytes on a line after "Family ID:"
-    fam_match = re.search(
-        r"Family\s+ID\s*:\s*\n\s*((?:[0-9a-fA-F]{2}\s*)+)",
-        output, re.IGNORECASE,
-    )
-    if fam_match:
-        report_family = _parse_hex_line(fam_match.group(1))
-        expected_family = family_id.encode("ascii").ljust(16, b"\x00")
-        if report_family != expected_family:
-            errors.append(
-                f"family_id: expected {expected_family.hex()}, got {report_family.hex()}"
-            )
-    else:
-        errors.append("family_id: not found in report")
-
-    # Image ID
-    img_match = re.search(
-        r"Image\s+ID\s*:\s*\n\s*((?:[0-9a-fA-F]{2}\s*)+)",
-        output, re.IGNORECASE,
-    )
-    if img_match:
-        report_image = _parse_hex_line(img_match.group(1))
-        expected_image = image_id.encode("ascii").ljust(16, b"\x00")
-        if report_image != expected_image:
-            errors.append(
-                f"image_id: expected {expected_image.hex()}, got {report_image.hex()}"
-            )
-    else:
-        errors.append("image_id: not found in report")
+    errors = []
+    if report.guest_svn != guest_svn:
+        errors.append(f"guest_svn: expected {guest_svn}, got {report.guest_svn}")
+    if report.policy != policy_int:
+        errors.append(f"policy: expected {hex(policy_int)}, got {hex(report.policy)}")
+    if report.family_id != expected_family:
+        errors.append(
+            f"family_id: expected {expected_family.hex()}, got {report.family_id.hex()}"
+        )
+    if report.image_id != expected_image:
+        errors.append(
+            f"image_id: expected {expected_image.hex()}, got {report.image_id.hex()}"
+        )
+    # An all-zero ID_KEY_DIGEST means the guest launched without an ID block at
+    # all. The four comparisons above would then all fail with zeros, which is
+    # a confusing way to report "no ID block was used".
+    if not report.id_block_used:
+        errors.append(
+            "id_key_digest is all zero — the guest launched without an ID block"
+        )
 
     if errors:
         return StepHandlerResult(exit_code=1, stderr="\n".join(errors))
@@ -137,7 +95,10 @@ def verify_id_block_fields(ctx: StepContext) -> StepHandlerResult:
         exit_code=0,
         stdout=(
             f"All ID block fields match: svn={guest_svn} policy={hex(policy_int)} "
-            f"family_id={family_id!r} image_id={image_id!r}"
+            f"family_id={family_id!r} image_id={image_id!r}\n"
+            f"  report v{report.version} vmpl={report.vmpl} "
+            f"cpuid={report.cpuid} tcb=({report.reported_tcb})\n"
+            f"  id_key_digest={report.id_key_digest.hex()[:32]}..."
         ),
     )
 
