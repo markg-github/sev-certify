@@ -390,8 +390,10 @@ def execute_test(
         for i, step in enumerate(steps):
             is_last = i == total_steps - 1
 
-            # Pick up any profile changes made by a previous callable step
-            # (e.g. generate_id_block setting id_block/id_auth/policy).
+            # Re-read the profile from the context rather than overwriting it.
+            # A callable step may replace ctx.profile (dataclasses.replace on a
+            # frozen VMProfile yields a new object); assigning the stale local
+            # back over it silently discarded that change for every later step.
             profile = ctx.profile
             ctx.launch = launch
 
