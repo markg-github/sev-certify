@@ -9,6 +9,7 @@ import tomllib
 from datetime import datetime, timezone
 from pathlib import Path
 
+from . import snpguest_caps
 from .environment import detect_environment
 from .os_info import update_environment_with_guest_os
 from .models import (
@@ -114,6 +115,15 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         default=None,
         metavar="PATH",
         help="Override OVMF firmware .fd (overrides test VMProfile and host search paths)",
+    )
+    parser.add_argument(
+        "--try-anyway",
+        dest="try_anyway",
+        action="store_true",
+        help="Run tests against external tooling whose behavior has not been "
+        "validated, instead of reporting them as skipped. Currently affects "
+        "snpguest: only the v0.10.0 release contract is validated (see "
+        "sev_verify/snpguest_caps.py).",
     )
     return parser.parse_args(argv)
 
@@ -321,6 +331,7 @@ def execute_test(
     certification_version: str | None = None,
     qemu_binary: str | None = None,
     ovmf_path: str | None = None,
+    try_anyway: bool = False,
     environment: dict[str, str | None] | None = None,
 ) -> TestResult:
     """Run a test, printing each step live as it executes."""
@@ -370,6 +381,7 @@ def execute_test(
             launch=None,
             cli_qemu_binary=qemu_binary,
             cli_ovmf_path=ovmf_path,
+            cli_try_anyway=try_anyway,
         )
 
         overall = "pass"
@@ -478,6 +490,21 @@ def execute_test(
                 elif step.type == "required":
                     overall = "fail"
 
+            elif sr.result == "skip" and step.type == "setup":
+                # A setup step reported the test unassessable (e.g. unvalidated
+                # external tooling). Report "skip", not "fail" — nothing about
+                # the platform under test was actually exercised.
+                if sr.stderr:
+                    gutter = "   " if is_last else "│  "
+                    for line in sr.stderr.strip().splitlines()[:5]:
+                        _flush(f"   {gutter}   {line}")
+                overall = "skip"
+                for j, remaining in enumerate(steps[i + 1:], i + 1):
+                    skipped = StepResult(step=remaining, result="skip")
+                    step_results.append(skipped)
+                    _flush(_step_result_line(skipped, j == total_steps - 1))
+                break
+
         passed = sum(1 for s in step_results if s.result == "pass")
         failed = sum(1 for s in step_results if s.result in ("fail", "error"))
         icon = _RESULT_LABEL.get(overall, "????")
@@ -497,9 +524,8 @@ def execute_test(
 
 
 #: Ordering used to fold many test results into one certification result.
-#: A later test must never mask a worse earlier one. "skip" is included for
-#: forward compatibility — StepResult already has that state, and a test-level
-#: skip belongs between pass and fail.
+#: A later test must never mask a worse earlier one — in particular a skipped
+#: test must not hide a real failure.
 _RESULT_SEVERITY = {"pass": 0, "skip": 1, "fail": 2, "error": 3}
 
 
@@ -522,6 +548,7 @@ def execute_certification(
     artifacts_root: Path,
     qemu_binary: str | None = None,
     ovmf_path: str | None = None,
+    try_anyway: bool = False,
     environment: dict[str, str | None] | None = None,
 ) -> CertificationResult:
     """Run all tests in a certification with live output."""
@@ -549,6 +576,7 @@ def execute_certification(
             certification_version=cert.version,
             qemu_binary=qemu_binary,
             ovmf_path=ovmf_path,
+            try_anyway=try_anyway,
             environment=environment,
         )
         test_results.append(tr)
@@ -663,6 +691,21 @@ def main(argv: list[str] | None = None) -> int:
         _flush(f"   OVMF:   {environment['ovmf_version']}")
     elif effective_ovmf:
         _flush(f"   OVMF:   {effective_ovmf}")
+    if environment.get("snpguest_version"):
+        _flush(
+            f"   snpguest: {environment['snpguest_version']} "
+            f"[{environment.get('snpguest_profile')}]"
+        )
+
+    # Surfaced here rather than from the gate step: the harness only echoes step
+    # output for failing steps, so an override that then succeeds would leave no
+    # visible trace of having run against unvalidated tooling.
+    caps = snpguest_caps.detect()
+    if args.try_anyway and not caps.supported:
+        _flush("")
+        _flush(f"   WARNING: --try-anyway is overriding an unvalidated snpguest.")
+        _flush(f"            {caps.reason}")
+        _flush(f"            Failures below may reflect the tool, not the platform.")
     _flush("")
 
     total_tests = 0
@@ -682,6 +725,7 @@ def main(argv: list[str] | None = None) -> int:
                 certification_version=None,
                 qemu_binary=qemu_override,
                 ovmf_path=ovmf_override,
+                try_anyway=args.try_anyway,
                 environment=environment,
             )
             prereq_results.append(tr)
@@ -717,6 +761,7 @@ def main(argv: list[str] | None = None) -> int:
             artifacts_root=args.artifacts_dir,
             qemu_binary=qemu_override,
             ovmf_path=ovmf_override,
+            try_anyway=args.try_anyway,
             environment=environment,
         )
         cert_results.append(cr)

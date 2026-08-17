@@ -347,6 +347,12 @@ class StepHandlerResult:
     exit_code: int = 0
     stdout: str = ""
     stderr: str = ""
+    #: Set when the step could not be assessed at all — a missing or
+    #: unvalidated external tool, not a failure of the thing under test.
+    #: A ``setup`` step returning this skips the rest of the test and reports
+    #: "skip" rather than "fail", so a tooling gap is never mistaken for a
+    #: hardware defect. Put the explanation in ``stderr``.
+    unsupported: bool = False
 
 
 @dataclass
@@ -369,6 +375,9 @@ class StepContext:
     # Global CLI overrides (same as ``python3 -m sev_verify --qemu-binary`` / ``--ovmf``).
     cli_qemu_binary: str | None = None
     cli_ovmf_path: str | None = None
+    # ``--try-anyway``: run against external tooling we have not validated,
+    # instead of reporting the test as unsupported.
+    cli_try_anyway: bool = False
 
 
 @dataclass
@@ -376,7 +385,7 @@ class TestResult:
     """Result of executing a TestDefinition."""
 
     test: TestDefinition
-    result: Literal["pass", "fail", "error"]
+    result: Literal["pass", "fail", "error", "skip"]
     step_results: list[StepResult] = field(default_factory=list)
     started_at: str | None = None
     completed_at: str | None = None

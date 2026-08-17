@@ -25,7 +25,7 @@ from cryptography.hazmat.primitives.serialization import (
     PrivateFormat,
 )
 
-from sev_verify import attestation_report
+from sev_verify import attestation_report, snpguest_caps
 from sev_verify.cvm_props import (
     DEFAULT_FAMILY_ID,
     DEFAULT_GUEST_SVN,
@@ -33,6 +33,7 @@ from sev_verify.cvm_props import (
     DEFAULT_POLICY,
     MeasurementError,
     calculate_measurement,
+    check_snpguest_id_block_support,
     generate_id_block,
     read_measurement,
 )
@@ -118,6 +119,11 @@ def _regenerate_id_block(
     image_id = os.environ.get("ID_BLOCK_IMAGE_ID", DEFAULT_IMAGE_ID)
     guest_svn = os.environ.get("ID_BLOCK_GUEST_SVN", DEFAULT_GUEST_SVN)
 
+    # Same 16 bytes either way; only the CLI spelling differs by snpguest build.
+    encoding = snpguest_caps.detect().family_id_encoding
+    family_id_arg = snpguest_caps.encode_id_field(family_id, encoding)
+    image_id_arg = snpguest_caps.encode_id_field(image_id, encoding)
+
     id_key = ec.generate_private_key(ec.SECP384R1())
     auth_key = ec.generate_private_key(ec.SECP384R1())
 
@@ -139,8 +145,8 @@ def _regenerate_id_block(
                 "snpguest", "generate", "id-block",
                 str(id_key_path), str(auth_key_path),
                 measurement,
-                "--family-id", family_id,
-                "--image-id", image_id,
+                "--family-id", family_id_arg,
+                "--image-id", image_id_arg,
                 "--svn", guest_svn,
                 "--policy", policy,
                 "--id-file", str(id_block_file),
@@ -256,6 +262,15 @@ def set_bad_abi_version(ctx: StepContext) -> StepHandlerResult:
 
 def steps() -> list[BaseStep]:
     return [
+        # This test cannot mean anything without a working ID block, so gate on
+        # snpguest exposing a contract we have validated. On anything else the
+        # test reports "skip" rather than blaming the platform.
+        Step.for_callable(
+            name="Check snpguest ID block support",
+            type="setup",
+            handler="check_snpguest_id_block_support",
+            timeout=30,
+        ),
         # ── Positive: launch with valid ID block, verify report fields ──
         Step.for_callable(
             name="Calculate measurement",
