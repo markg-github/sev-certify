@@ -321,7 +321,10 @@ def steps() -> list[BaseStep]:
         Step.for_vm_launch(
             name="Launch with bad measurement (expect rejection)",
             type="required",
-            expected_result="exit_code:1",
+            # Assert the firmware's own reason, not merely that something
+            # failed: exit_code:1 alone is also satisfied by a boot timeout, so
+            # it cannot distinguish a real rejection from a hung guest.
+            expected_result="stdout_contains:Bad measurement",
             timeout=300,
         ),
         Step.for_vm_stop(
@@ -340,7 +343,11 @@ def steps() -> list[BaseStep]:
         Step.for_vm_launch(
             name="Launch with SMT-incompatible policy (expect rejection)",
             type="required",
-            expected_result="exit_code:1",
+            # This one is refused by KVM before the firmware sees it
+            # (SNP_LAUNCH_START ret=-22 fw_error=0 ''), so there is no firmware
+            # string to match. Assert the rejection happened at launch-start,
+            # which still rules out a boot timeout.
+            expected_result="stdout_contains:SNP_LAUNCH_START",
             timeout=300,
         ),
         Step.for_vm_stop(
@@ -359,7 +366,8 @@ def steps() -> list[BaseStep]:
         Step.for_vm_launch(
             name="Launch with impossible ABI version (expect rejection)",
             type="required",
-            expected_result="exit_code:1",
+            # Firmware rejects this one: SNP_LAUNCH_START fw_error=7.
+            expected_result="stdout_contains:Policy is not allowed",
             timeout=300,
         ),
         Step.for_vm_stop(
