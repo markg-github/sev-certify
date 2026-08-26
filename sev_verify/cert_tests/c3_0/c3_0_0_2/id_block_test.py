@@ -54,9 +54,16 @@ def verify_id_block_fields(ctx: StepContext) -> StepHandlerResult:
     Reads report.bin directly (see :mod:`sev_verify.attestation_report`) rather
     than parsing ``snpguest display report`` output, so the check does not
     depend on a CLI's human-readable formatting.
+
+    The host's processor generation is passed in so the parser can cross-check
+    it against the CPUID the report carries, and so TCB_VERSION — whose byte
+    layout differs by generation — is never decoded on a guess.
     """
     try:
-        report = attestation_report.read(ctx.artifact_dir / "report.bin")
+        report = attestation_report.read(
+            ctx.artifact_dir / "report.bin",
+            generation=attestation_report.host_generation(),
+        )
     except attestation_report.ReportError as exc:
         return StepHandlerResult(exit_code=1, stderr=str(exc))
 
@@ -97,7 +104,8 @@ def verify_id_block_fields(ctx: StepContext) -> StepHandlerResult:
             f"All ID block fields match: svn={guest_svn} policy={hex(policy_int)} "
             f"family_id={family_id!r} image_id={image_id!r}\n"
             f"  report v{report.version} vmpl={report.vmpl} "
-            f"cpuid={report.cpuid} tcb=({report.reported_tcb})\n"
+            f"cpuid={report.cpuid} gen={report.generation} "
+            f"tcb=({report.reported_tcb})\n"
             f"  id_key_digest={report.id_key_digest.hex()[:32]}..."
         ),
     )
