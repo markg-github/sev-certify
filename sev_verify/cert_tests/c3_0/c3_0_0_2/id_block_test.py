@@ -193,24 +193,81 @@ def set_bad_measurement(ctx: StepContext) -> StepHandlerResult:
     )
 
 
+_SMT_ACTIVE = Path("/sys/devices/system/cpu/smt/active")
+_SMT_CONTROL = Path("/sys/devices/system/cpu/smt/control")
+
+#: smt/control values that explain *why* SMT is inactive.  The first two mean it
+#: was switched off, the last two that the capability is absent — a distinction
+#: worth preserving in the report, since only the former could have been on.
+_SMT_CONTROL_REASONS = {
+    "off": "SMT is disabled on this host",
+    "forceoff": "SMT is force-disabled and cannot be re-enabled without a reboot",
+    "notsupported": "this processor does not support SMT",
+    "notimplemented": "this architecture does not implement SMT runtime control",
+}
+
+
+def _read_sysfs(path: Path) -> str | None:
+    """Return the stripped contents of *path*, or None if it cannot be read."""
+    try:
+        return path.read_text().strip()
+    except OSError:
+        return None
+
+
+def _smt_status() -> tuple[bool, str]:
+    """Return whether host SMT is active, with a reason suitable for reporting.
+
+    ``smt/active`` decides: it reports whether sibling threads are online right
+    now.  ``smt/control`` is consulted only to explain why they are not, and is
+    deliberately not used as the decision — besides the four names above it can
+    also read as a thread count on architectures with partial SMT states.
+    """
+    active = _read_sysfs(_SMT_ACTIVE)
+    control = _read_sysfs(_SMT_CONTROL)
+
+    if active == "1":
+        return True, "SMT is active on this host"
+
+    reason = _SMT_CONTROL_REASONS.get(control or "")
+    if reason is not None:
+        return False, reason
+    if active is None:
+        return False, (
+            f"{_SMT_ACTIVE} is not present, so SMT state cannot be determined"
+        )
+    return False, "SMT is not active on this host"
+
+
+def smt_case_not_applicable(ctx: StepContext) -> StepHandlerResult:
+    """Record that the SMT policy case was left out of this run.
+
+    Emitted in place of the SMT steps when the host cannot exercise them, so
+    that the omission appears in the results rather than the case simply being
+    absent.
+    """
+    _, reason = _smt_status()
+    return StepHandlerResult(
+        exit_code=0,
+        stdout=f"SMT policy rejection case not run: {reason}",
+    )
+
+
 def set_incompatible_policy(ctx: StepContext) -> StepHandlerResult:
     """Regenerate the ID block with a policy the platform cannot satisfy.
 
-    Checks whether SMT is active on the host.  If so, regenerates the ID block
-    (and QEMU launch policy) with SMT=0 — the firmware must reject because the
-    platform cannot guarantee single-threaded execution.
+    Regenerates the ID block (and QEMU launch policy) with SMT=0 — the firmware
+    must reject because the platform cannot guarantee single-threaded execution.
+
+    Only reached on an SMT-active host; steps() omits this case otherwise.  The
+    check is repeated here so the handler is correct on its own terms rather
+    than relying on the caller.
     """
-    smt_path = Path("/sys/devices/system/cpu/smt/active")
-    if not smt_path.exists():
-        return StepHandlerResult(
-            exit_code=1,
-            stderr="Cannot determine SMT status: /sys/devices/system/cpu/smt/active not found",
-        )
-    smt_active = smt_path.read_text().strip() == "1"
+    smt_active, reason = _smt_status()
     if not smt_active:
         return StepHandlerResult(
             exit_code=1,
-            stderr="SMT is not active on this host; cannot test SMT policy incompatibility",
+            stderr=f"Cannot test SMT policy incompatibility: {reason}",
         )
 
     try:
@@ -263,7 +320,9 @@ def set_bad_abi_version(ctx: StepContext) -> StepHandlerResult:
 
 
 def steps() -> list[BaseStep]:
-    return [
+    smt_active, _ = _smt_status()
+
+    steps_list: list[BaseStep] = [
         # ── Positive: launch with valid ID block, verify report fields ──
         Step.for_callable(
             name="Calculate measurement",
@@ -332,30 +391,52 @@ def steps() -> list[BaseStep]:
             type="info",
             timeout=60,
         ),
+    ]
 
-        # ── Negative: incompatible policy (SMT=0 on SMT-active host) ──
-        Step.for_callable(
-            name="Set incompatible policy (SMT)",
-            type="required",
-            handler="set_incompatible_policy",
-            timeout=30,
-        ),
-        Step.for_vm_launch(
-            name="Launch with SMT-incompatible policy (expect rejection)",
-            type="required",
-            # This one is refused by KVM before the firmware sees it
-            # (SNP_LAUNCH_START ret=-22 fw_error=0 ''), so there is no firmware
-            # string to match. Assert the rejection happened at launch-start,
-            # which still rules out a boot timeout.
-            expected_result="stdout_contains:SNP_LAUNCH_START",
-            timeout=300,
-        ),
-        Step.for_vm_stop(
-            name="Stop VM (after SMT policy)",
-            type="info",
-            timeout=60,
-        ),
+    # ── Negative: incompatible policy (SMT=0 on SMT-active host) ──
+    #
+    # Clearing the SMT bit only produces a rejection on a host where SMT is
+    # actually active, so elsewhere there is nothing to assert.  The case is
+    # left out of the step list rather than run and failed, with an info step
+    # in its place: a case that vanishes silently is indistinguishable from one
+    # that passed.  Reporting it as "pass" does overload that outcome — a
+    # first-class per-step "not applicable on this platform" result would say
+    # so plainly, and is the better home for this once one exists.
+    if smt_active:
+        steps_list += [
+            Step.for_callable(
+                name="Set incompatible policy (SMT)",
+                type="required",
+                handler="set_incompatible_policy",
+                timeout=30,
+            ),
+            Step.for_vm_launch(
+                name="Launch with SMT-incompatible policy (expect rejection)",
+                type="required",
+                # This one is refused by KVM before the firmware sees it
+                # (SNP_LAUNCH_START ret=-22 fw_error=0 ''), so there is no
+                # firmware string to match. Assert the rejection happened at
+                # launch-start, which still rules out a boot timeout.
+                expected_result="stdout_contains:SNP_LAUNCH_START",
+                timeout=300,
+            ),
+            Step.for_vm_stop(
+                name="Stop VM (after SMT policy)",
+                type="info",
+                timeout=60,
+            ),
+        ]
+    else:
+        steps_list.append(
+            Step.for_callable(
+                name="SMT policy case not applicable",
+                type="info",
+                handler="smt_case_not_applicable",
+                timeout=10,
+            )
+        )
 
+    steps_list += [
         # ── Negative: impossible ABI version ──
         Step.for_callable(
             name="Set impossible ABI version",
@@ -376,3 +457,5 @@ def steps() -> list[BaseStep]:
             timeout=60,
         ),
     ]
+
+    return steps_list
