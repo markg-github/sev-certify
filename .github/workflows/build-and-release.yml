@@ -150,25 +150,37 @@ jobs:
             TAG="${GITHUB_REF#refs/tags/}"
           fi
 
-          # Get the release ID
-          RELEASE_ID=$(gh api repos/$GITHUB_REPOSITORY/releases/tags/"${TAG}" --jq .id)
+          # Resolve release ID via gh release view and retry briefly for API consistency.
+          for attempt in {1..5}; do
+            RELEASE_ID=$(gh release view "${TAG}" --json databaseId --jq '.databaseId' 2>/dev/null || true)
+            if [[ -n "${RELEASE_ID}" ]]; then
+              break
+            fi
+            sleep 2
+          done
+
+          if [[ -z "${RELEASE_ID}" ]]; then
+            echo "Failed to resolve release ID for tag ${TAG}"
+            exit 1
+          fi
+
           HOST_FILE="/tmp/release-artifacts/host-${{ matrix.distro }}-${{ matrix.release }}.efi"
           ASSET_NAME=$(basename "$HOST_FILE")
 
-          # Look for an existing asset with the same name
+          # Look for an existing asset with the same name.
           ASSET_ID=$(gh api \
             repos/$GITHUB_REPOSITORY/releases/$RELEASE_ID/assets \
             --jq ".[] | select(.name==\"$ASSET_NAME\") | .id")
 
-          # If found, delete it
+          # If found, delete it.
           if [ -n "$ASSET_ID" ]; then
             gh api \
               --method DELETE \
               -H "Authorization: Bearer $GITHUB_TOKEN" \
               repos/$GITHUB_REPOSITORY/releases/assets/$ASSET_ID
-            fi
+          fi
 
-          # Upload the new asset with the correct Content-Type
+          # Upload the new asset with the correct Content-Type.
           curl --fail -sS -X POST \
             -H "Authorization: Bearer $GITHUB_TOKEN" \
             -H "Content-Type: application/vnd.dispatch+efi" \
