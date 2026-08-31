@@ -57,8 +57,19 @@ first such validation used a v3 report from an EPYC 9654 (Genoa, CPUID
 19h/11h), cross-checked against independently known values:
 GUEST_SVN/POLICY/FAMILY_ID/IMAGE_ID against the values the ID block was built
 with, REPORTED_TCB against ``snphost ok``, AUTHOR_KEY_DIGEST against the known
-all-zero author key, and CPUID against the CPU model. As further processors are
-exercised, extend :data:`SUPPORTED_GENERATIONS` and record the validation here.
+all-zero author key, and CPUID against the CPU model.
+
+The second used a **version 5** report from an EPYC 9575F (Turin, CPUID
+1Ah/02h), which validated the Turin TCB layout for the first time. Its
+REPORTED_TCB bytes were ``0103020600000062``, decoding under the Turin layout to
+``bootloader=3 tee=2 snp=6 microcode=98 fmc=1`` — matching ``snphost show tcb``
+exactly. Decoded under the legacy layout the same bytes give
+``bootloader=1 tee=3 snp=0 microcode=98`` with no FMC: plausible values, silently
+wrong, which is precisely the failure this generation gate exists to prevent.
+That report also confirmed v5 moved none of the fields read here.
+
+As further processors are exercised, extend :data:`SUPPORTED_GENERATIONS` and
+record the validation here.
 
 .. note::
 
@@ -79,8 +90,8 @@ from pathlib import Path
 #: ATTESTATION_REPORT is a fixed-size structure.
 REPORT_SIZE = 1184
 
-#: Report versions whose layout we read. v3 is verified on hardware; v2 shares
-#: the same layout for every field below 0x188.
+#: Report versions whose layout we read. v3 and v5 are verified on hardware;
+#: v2 shares the same layout for every field below 0x188.
 #:
 #: Versions have only ever *appended* fields, so a newer report is very likely
 #: readable with these offsets unchanged. "Very likely" is not a basis for a
@@ -94,7 +105,10 @@ REPORT_SIZE = 1184
 #: Turin-layout processor, so both gates are needed and neither implies the
 #: other.
 #:
-#: Versions 4 and 5 exist and are refused here. To add one:
+#: v5 was added after a real v5 report from an EPYC 9575F decoded correctly at
+#: these offsets — REPORTED_TCB matched ``snphost show tcb`` and CPUID matched
+#: the host's, confirming its additions moved nothing we read. v4 exists and is
+#: still refused, never having been seen. To add one:
 #:
 #:   1. Check whether it shares framing with a version already listed. The
 #:      ``sev`` crate's ``ReportVariant`` mapping groups versions by layout —
@@ -107,7 +121,7 @@ REPORT_SIZE = 1184
 #:   3. Parse a real report of that version and check decoded values against
 #:      independently known ones, as the module docstring records for v3.
 #:   4. Add the version here and record the validation in the docstring.
-KNOWN_VERSIONS = frozenset({2, 3})
+KNOWN_VERSIONS = frozenset({2, 3, 5})
 
 #: TCB_VERSION byte layouts. See the module docstring for the two orderings.
 TCB_LAYOUT_LEGACY = "legacy"
@@ -136,10 +150,10 @@ TCB_LAYOUT_TURIN = "turin"
 #:
 #:     0x19 / 0x00-0x0F  Milan          legacy
 #:     0x19 / 0xA0-0xAF  Bergamo/Siena  legacy
-#:     0x1A / 0x00-0x11  Turin          turin
 SUPPORTED_GENERATIONS: tuple[tuple[int, range, str, str], ...] = (
     # (cpuid_family, model range, name, TCB layout)
     (0x19, range(0x10, 0x20), "Genoa", TCB_LAYOUT_LEGACY),  # EPYC 9654, v3 reports
+    (0x1A, range(0x00, 0x12), "Turin", TCB_LAYOUT_TURIN),   # EPYC 9575F, v5 reports
 )
 
 # Field offsets. See module docstring for how these were validated.
