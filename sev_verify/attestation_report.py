@@ -34,12 +34,23 @@ report version. :func:`host_generation` reads it; :func:`parse` takes the result
 as an argument so the parser itself stays a pure function of its input and can
 be unit-tested without hardware.
 
-When the report is v3+ it also carries a CPUID copy, and :func:`parse`
-cross-checks the two. A mismatch means the report did not come from the machine
-we are decoding it on, so it is raised rather than silently preferred either
-way. Where no generation is supplied, the report's own CPUID is used if present.
-An unrecognised processor raises: guessing a layout would produce
-plausible-looking but wrong values with no error.
+When the report is v3+ it also carries a CPUID copy, which :func:`parse` uses as
+a cross-check — but only when it can be resolved. Firmware does not always fill
+it in: SEV firmware 1.55 build 38 leaves all three bytes zero in version-3
+reports, and build 39 populates them. A report like that is perfectly decodable
+using the host's generation, so it is decoded, and the failed cross-check is
+recorded in ``cpuid_note`` rather than raised. Refusing it would reject a usable
+report over a field the platform declined to fill.
+
+The error is reserved for the case that actually indicates a problem: both the
+host's and the report's CPUID resolve to validated generations, and they
+disagree. Then the report did not come from this machine and neither layout can
+be trusted for it. Where no generation is supplied at all, the report's own
+CPUID is used if it resolves; if it does not, TCB_VERSION is left undecoded,
+matching what a v2 report — which carries no CPUID — already does.
+
+An unrecognised processor still raises when it is the *only* source, since
+guessing a layout would produce plausible-looking but wrong values with no error.
 
 Offsets are confirmed against real reports rather than read off a spec. The
 first such validation used a v3 report from an EPYC 9654 (Genoa, CPUID
@@ -212,6 +223,10 @@ class AttestationReport:
     cpuid: tuple[int, int, int] | None
     #: Validated processor generation this report was decoded as, or "unknown".
     generation: str
+    #: Set when the report's own CPUID could not be used and the host's was
+    #: preferred — for instance when firmware leaves those bytes zero. ``None``
+    #: when the report's CPUID was absent by design (v2) or agreed with the host.
+    cpuid_note: str | None = None
 
     @property
     def id_block_used(self) -> bool:
@@ -320,19 +335,57 @@ def parse(
         )
 
     # Resolve the generation that decides the TCB_VERSION layout.
+    #
+    # The host's CPUID is authoritative when supplied: it describes the silicon
+    # this code is running on, which is the thing the layout actually depends
+    # on. The report's copy is a cross-check, and only a useful one when it can
+    # be resolved — firmware does not always populate it. Observed on SEV
+    # firmware 1.55 build 38, which leaves all three bytes zero in version-3
+    # reports; build 39 fills them in. Refusing such a report would reject a
+    # decodable one over a field the platform declined to fill.
+    cpuid_note: str | None = None
     if generation is not None and cpuid is not None:
-        # Both available: they must agree, or this report did not come from the
-        # machine we are decoding it on.
-        report_gen = resolve_generation(cpuid[0], cpuid[1])
-        if report_gen != generation:
-            raise ReportUnsupportedCpu(
+        try:
+            report_gen = resolve_generation(cpuid[0], cpuid[1])
+        except ReportUnsupportedCpu:
+            # Unresolvable, so it contradicts nothing. Decode with the host's
+            # generation and record that the cross-check could not be made.
+            cpuid_note = (
                 f"report CPUID family 0x{cpuid[0]:02X} model 0x{cpuid[1]:02X} "
-                f"resolves to {report_gen[0]}, but the caller supplied "
-                f"{generation[0]}. The report does not appear to come from this "
-                f"machine."
+                f"stepping 0x{cpuid[2]:02X} does not resolve to a known "
+                f"generation; decoded as {generation[0]} from the host instead"
             )
+        else:
+            if report_gen != generation:
+                # Both resolve, and disagree: the report is not from this
+                # machine, and neither layout can be trusted for it.
+                #
+                # Note this branch is only reachable once SUPPORTED_GENERATIONS
+                # holds more than one entry. With a single validated generation
+                # every disagreeing CPUID is unresolvable instead, and takes the
+                # branch above. That is the conservative order: a report is only
+                # called foreign when both generations are ones we have actually
+                # validated against.
+                raise ReportUnsupportedCpu(
+                    f"report CPUID family 0x{cpuid[0]:02X} model "
+                    f"0x{cpuid[1]:02X} resolves to {report_gen[0]}, but this "
+                    f"host is {generation[0]}. The report does not appear to "
+                    f"come from this machine."
+                )
     elif generation is None and cpuid is not None:
-        generation = resolve_generation(cpuid[0], cpuid[1])
+        # No host generation to fall back on. An unresolvable CPUID then leaves
+        # nothing to choose a layout with, so the TCB is left undecoded — the
+        # same outcome as a v2 report, which carries no CPUID at all — rather
+        # than raising for a v3 report where v2 would have been tolerated.
+        try:
+            generation = resolve_generation(cpuid[0], cpuid[1])
+        except ReportUnsupportedCpu:
+            cpuid_note = (
+                f"report CPUID family 0x{cpuid[0]:02X} model 0x{cpuid[1]:02X} "
+                f"stepping 0x{cpuid[2]:02X} does not resolve to a known "
+                f"generation and no host generation was supplied; "
+                f"TCB_VERSION left undecoded"
+            )
 
     if generation is not None:
         gen_name, tcb_layout = generation
@@ -360,6 +413,7 @@ def parse(
         reported_tcb=reported_tcb,
         cpuid=cpuid,
         generation=gen_name,
+        cpuid_note=cpuid_note,
     )
 
 
