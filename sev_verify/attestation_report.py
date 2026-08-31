@@ -81,6 +81,32 @@ REPORT_SIZE = 1184
 
 #: Report versions whose layout we read. v3 is verified on hardware; v2 shares
 #: the same layout for every field below 0x188.
+#:
+#: Versions have only ever *appended* fields, so a newer report is very likely
+#: readable with these offsets unchanged. "Very likely" is not a basis for a
+#: certification result, so an unlisted version is refused rather than assumed
+#: compatible — the same stance :data:`SUPPORTED_GENERATIONS` takes, for the
+#: same reason.
+#:
+#: Note this is an axis independent of processor generation. The version decides
+#: which fields exist and where; the generation decides how TCB_VERSION's eight
+#: bytes are ordered. A v3 report can come from either a legacy-layout or a
+#: Turin-layout processor, so both gates are needed and neither implies the
+#: other.
+#:
+#: Versions 4 and 5 exist and are refused here. To add one:
+#:
+#:   1. Check whether it shares framing with a version already listed. The
+#:      ``sev`` crate's ``ReportVariant`` mapping groups versions by layout —
+#:      currently ``2 => V2``, ``3 | 4 => V3``, ``_ => V5`` — so a version
+#:      sharing a variant with one listed here reads identically. That makes v4
+#:      the cheap case and v5 the one needing real scrutiny.
+#:   2. Remember additions are not always new offsets. v5 adds
+#:      ``page_swap_disabled`` to GuestPolicy and SEV-TIO to PlatformInfo, which
+#:      are new *bits in existing fields* and move nothing.
+#:   3. Parse a real report of that version and check decoded values against
+#:      independently known ones, as the module docstring records for v3.
+#:   4. Add the version here and record the validation in the docstring.
 KNOWN_VERSIONS = frozenset({2, 3})
 
 #: TCB_VERSION byte layouts. See the module docstring for the two orderings.
