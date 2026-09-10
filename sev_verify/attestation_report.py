@@ -43,7 +43,7 @@ recorded in ``cpuid_note`` rather than raised. Refusing it would reject a usable
 report over a field the platform declined to fill.
 
 The error is reserved for the case that actually indicates a problem: both the
-host's and the report's CPUID resolve to validated generations, and they
+host's and the report's CPUID resolve to known generations, and they
 disagree. Then the report did not come from this machine and neither layout can
 be trusted for it. Where no generation is supplied at all, the report's own
 CPUID is used if it resolves; if it does not, TCB_VERSION is left undecoded,
@@ -75,8 +75,9 @@ exactly. Decoded under the legacy layout the same bytes give
 wrong, which is precisely the failure this generation gate exists to prevent.
 That report also confirmed v5 moved none of the fields read here.
 
-As further processors are exercised, extend :data:`SUPPORTED_GENERATIONS` and
-record the validation here.
+As further processors are exercised, record them against the relevant entry in
+:data:`SUPPORTED_GENERATIONS` and note the validation here. A generation absent
+from that table is refused outright.
 
 .. note::
 
@@ -137,33 +138,46 @@ KNOWN_VERSIONS = frozenset({2, 3, 5})
 TCB_LAYOUT_LEGACY = "legacy"
 TCB_LAYOUT_TURIN = "turin"
 
-#: Processor generations this module has been **validated against**, keyed by
-#: CPUID family and an inclusive model range.
+#: Processor generations whose TCB_VERSION layout is known, keyed by CPUID
+#: family and a model range.
 #:
-#: This is deliberately a record of what has been exercised on real hardware,
-#: not of what we believe we could decode. A certification harness reporting a
-#: pass on silicon it has never run on is the failure this gate exists to
-#: prevent, so an unrecognised processor raises rather than being decoded on
-#: the assumption that a transcribed layout is right.
+#: What this table selects is the **layout**, which is a property of the
+#: generation rather than of an individual part, so the ranges are AMD's
+#: generation boundaries — taken from the ``sev`` crate's ``identify_cpu`` — and
+#: not a list of parts we have run on. Narrowing them to tested models would
+#: reject other members of a generation whose layout is provably the same. The
+#: gate exists to refuse an *unrecognised generation*, where guessing between
+#: the two layouts would yield plausible but wrong values with no error; it is
+#: not a claim that every model in range has been exercised.
+#:
+#: Which parts have actually been exercised is recorded per entry below, and the
+#: distinction matters, because the entries do not rest on equal evidence:
+#:
+#:   - Genoa and Bergamo/Siena are separate entries but AMD ships them the
+#:     *byte-identical* firmware image — ``amd_sev_fam19h_model1xh.sbin`` and
+#:     ``amd_sev_fam19h_modelaxh.sbin`` had the same SHA-256 on the test host —
+#:     so validating one substantiates the other by construction. They are kept
+#:     apart only so a report names the silicon it came from; the ``sev`` crate
+#:     folds both into "Genoa" because its ``Generation`` selects a KDS product
+#:     path, where they genuinely do share an endpoint.
+#:   - Milan has a *different* firmware image (``model0xh``), so its entry rests
+#:     on the weaker claim that its layout is legacy, per the ``sev`` crate.
 #:
 #: Keyed on family/model *pairs*, not family/model/stepping triples: AMD scopes
-#: SEV firmware images by family and model only — ``amd_sev_fam19h_model1xh``,
-#: ``amd_sev_fam1ah_model0xh`` — and stepping appears nowhere in that
-#: partitioning. snpguest's ``get_processor_model`` (``src/fetch.rs``) splits
-#: the same way for VCEK lookup.
+#: SEV firmware images by family and model only, and stepping appears nowhere in
+#: that partitioning. snpguest's ``get_processor_model`` (``src/fetch.rs``)
+#: splits the same way for VCEK lookup.
 #:
-#: To add a generation: run the ID block test on that hardware, confirm the
-#: decoded fields against ``snphost show tcb`` and the values the ID block was
-#: built with, then add the entry and note the validation in the docstring.
-#: The layouts for generations not yet exercised here, taken from the ``sev``
-#: crate, are:
-#:
-#:     0x19 / 0x00-0x0F  Milan          legacy
-#:     0x19 / 0xA0-0xAF  Bergamo/Siena  legacy
+#: To record a generation as exercised: run the ID block test on that hardware,
+#: confirm the decoded fields against ``snphost show tcb`` and the values the ID
+#: block was built with, then note the part in the entry's comment and in the
+#: module docstring.
 SUPPORTED_GENERATIONS: tuple[tuple[int, range, str, str], ...] = (
     # (cpuid_family, model range, name, TCB layout)
-    (0x19, range(0x10, 0x20), "Genoa", TCB_LAYOUT_LEGACY),  # EPYC 9654, v3 reports
-    (0x1A, range(0x00, 0x12), "Turin", TCB_LAYOUT_TURIN),   # EPYC 9575F, v5 reports
+    (0x19, range(0x00, 0x10), "Milan", TCB_LAYOUT_LEGACY),          # layout inferred
+    (0x19, range(0x10, 0x20), "Genoa", TCB_LAYOUT_LEGACY),          # EPYC 9654, v3 reports
+    (0x19, range(0xA0, 0xB0), "Bergamo/Siena", TCB_LAYOUT_LEGACY),  # same fw image as Genoa
+    (0x1A, range(0x00, 0x12), "Turin", TCB_LAYOUT_TURIN),           # EPYC 9575F, v5 reports
 )
 
 # Field offsets. See module docstring for how these were validated.
@@ -203,11 +217,10 @@ class ReportUnsupportedVersion(ReportError):
 
 
 class ReportUnsupportedCpu(ReportError):
-    """The report comes from a processor this module has not been validated on.
+    """The report comes from a generation whose TCB layout this module lacks.
 
-    Raised rather than decoding on the assumption that a transcribed layout is
-    correct — TCB_VERSION in particular is laid out differently on Turin, so a
-    wrong guess yields plausible values rather than an error.
+    Raised rather than decoding on a guess — TCB_VERSION is laid out differently
+    on Turin, so choosing wrongly yields plausible values rather than an error.
     """
 
 
@@ -271,7 +284,7 @@ class AttestationReport:
     reported_tcb: TcbVersion | None
     #: (family, model, stepping) — v3+ only, None on older reports.
     cpuid: tuple[int, int, int] | None
-    #: Validated processor generation this report was decoded as, or "unknown".
+    #: Processor generation this report was decoded as, or "unknown".
     generation: str
     #: Set when the report's own CPUID could not be used and the host's was
     #: preferred — for instance when firmware leaves those bytes zero. ``None``
@@ -298,13 +311,13 @@ def resolve_generation(family: int, model: int) -> tuple[str, str]:
         if family == fam and model in models:
             return name, layout
 
-    validated = ", ".join(
+    known = ", ".join(
         f"{name} (family 0x{fam:02X} model 0x{models[0]:02X}-0x{models[-1]:02X})"
         for fam, models, name, _ in SUPPORTED_GENERATIONS
     )
     raise ReportUnsupportedCpu(
-        f"CPUID family 0x{family:02X} model 0x{model:02X} has not been validated "
-        f"against. Validated: {validated}. TCB_VERSION is laid out differently "
+        f"CPUID family 0x{family:02X} model 0x{model:02X} is not a generation "
+        f"this parser knows. Known: {known}. TCB_VERSION is laid out differently "
         f"across processor generations, so decoding anyway would produce "
         f"plausible but wrong values. See SUPPORTED_GENERATIONS in "
         f"sev_verify/attestation_report.py."
@@ -319,7 +332,7 @@ def host_generation() -> tuple[str, str]:
     it is present regardless of report version.
 
     Raises:
-        ReportUnsupportedCpu: family/model unreadable, or not validated.
+        ReportUnsupportedCpu: family/model unreadable, or not a known generation.
     """
     family = model = None
     try:
@@ -359,7 +372,7 @@ def parse(
         ReportMalformed: wrong size.
         ReportUnsupportedVersion: layout not validated for that version.
         ReportUnsupportedCpu: the report's CPUID disagrees with *generation*, or
-            names a processor that has not been validated against.
+            names a processor whose generation is not in SUPPORTED_GENERATIONS.
     """
     if len(data) != REPORT_SIZE:
         raise ReportMalformed(
@@ -440,12 +453,10 @@ def parse(
                 # Both resolve, and disagree: the report is not from this
                 # machine, and neither layout can be trusted for it.
                 #
-                # Note this branch is only reachable once SUPPORTED_GENERATIONS
-                # holds more than one entry. With a single validated generation
-                # every disagreeing CPUID is unresolvable instead, and takes the
-                # branch above. That is the conservative order: a report is only
-                # called foreign when both generations are ones we have actually
-                # validated against.
+                # Only reachable when both sides resolve, which is why the
+                # unresolvable case above is tried first: a report is called
+                # foreign only when both generations are ones this table knows,
+                # never merely because one of them is unrecognised.
                 raise ReportUnsupportedCpu(
                     f"report CPUID family 0x{cpuid[0]:02X} model "
                     f"0x{cpuid[1]:02X} resolves to {report_gen[0]}, but this "
@@ -510,7 +521,7 @@ def read(
     Raises:
         ReportMalformed: file missing or wrong size.
         ReportUnsupportedVersion: layout not validated for that version.
-        ReportUnsupportedCpu: CPUID mismatch, or processor not validated.
+        ReportUnsupportedCpu: CPUID mismatch, or unknown generation.
     """
     try:
         data = path.read_bytes()
