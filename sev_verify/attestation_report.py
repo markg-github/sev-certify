@@ -35,12 +35,8 @@ as an argument so the parser itself stays a pure function of its input and can
 be unit-tested without hardware.
 
 When the report is v3+ it also carries a CPUID copy, which :func:`parse` uses as
-a cross-check — but only when it can be resolved. Firmware does not always fill
-it in: SEV firmware 1.55 build 38 leaves all three bytes zero in version-3
-reports, and build 39 populates them. A report like that is perfectly decodable
-using the host's generation, so it is decoded, and the failed cross-check is
-recorded in ``cpuid_note`` rather than raised. Refusing it would reject a usable
-report over a field the platform declined to fill.
+a cross-check. A failed cross-check is recorded in ``cpuid_note`` rather than
+raised.
 
 The error is reserved for the case that actually indicates a problem: both the
 host's and the report's CPUID resolve to known generations, and they
@@ -55,29 +51,11 @@ guessing a layout would produce plausible-looking but wrong values with no error
 Report *versions* are treated more leniently than processors, deliberately. A
 newer version is decoded with the newest validated offsets and the assumption
 recorded in ``version_note``; only versions older than the validated range are
-refused. The asymmetry is the point: misreading a generation corrupts values
-silently, whereas an unrecognised version at worst leaves new fields unread,
-and the version — unlike the generation — is stated in the report itself.
-
-Offsets are confirmed against real reports rather than read off a spec. The
-first such validation used a v3 report from an EPYC 9654 (Genoa, CPUID
-19h/11h), cross-checked against independently known values:
-GUEST_SVN/POLICY/FAMILY_ID/IMAGE_ID against the values the ID block was built
-with, REPORTED_TCB against ``snphost ok``, AUTHOR_KEY_DIGEST against the known
-all-zero author key, and CPUID against the CPU model.
-
-The second used a **version 5** report from an EPYC 9575F (Turin, CPUID
-1Ah/02h), which validated the Turin TCB layout for the first time. Its
-REPORTED_TCB bytes were ``0103020600000062``, decoding under the Turin layout to
-``bootloader=3 tee=2 snp=6 microcode=98 fmc=1`` — matching ``snphost show tcb``
-exactly. Decoded under the legacy layout the same bytes give
-``bootloader=1 tee=3 snp=0 microcode=98`` with no FMC: plausible values, silently
-wrong, which is precisely the failure this generation gate exists to prevent.
-That report also confirmed v5 moved none of the fields read here.
+refused.
 
 As further processors are exercised, record them against the relevant entry in
-:data:`SUPPORTED_GENERATIONS` and note the validation here. A generation absent
-from that table is refused outright.
+:data:`SUPPORTED_GENERATIONS`. A generation absent from that table is refused
+outright.
 
 .. note::
 
@@ -106,8 +84,7 @@ REPORT_SIZE = 1184
 #: assumption — because versions have only ever appended fields, so the cost of
 #: being wrong is missing something new rather than misreading something old.
 #: Only versions *older* than this set are refused, where fields may genuinely
-#: not exist. See :func:`parse` for why that is a weaker stance than the one
-#: :data:`SUPPORTED_GENERATIONS` takes.
+#: not exist.
 #:
 #: Note this is an axis independent of processor generation. The version decides
 #: which fields exist and where; the generation decides how TCB_VERSION's eight
@@ -124,13 +101,12 @@ REPORT_SIZE = 1184
 #:   1. Check whether it shares framing with a version already listed. The
 #:      ``sev`` crate's ``ReportVariant`` mapping groups versions by layout —
 #:      currently ``2 => V2``, ``3 | 4 => V3``, ``_ => V5`` — so a version
-#:      sharing a variant with one listed here reads identically. That makes v4
-#:      the cheap case and v5 the one needing real scrutiny.
+#:      sharing a variant with one listed here reads identically.
 #:   2. Remember additions are not always new offsets. v5 adds
 #:      ``page_swap_disabled`` to GuestPolicy and SEV-TIO to PlatformInfo, which
 #:      are new *bits in existing fields* and move nothing.
 #:   3. Parse a real report of that version and check decoded values against
-#:      independently known ones, as the module docstring records for v3.
+#:      independently known ones.
 #:   4. Add the version here and record the validation in the docstring.
 KNOWN_VERSIONS = frozenset({2, 3, 5})
 
@@ -144,34 +120,11 @@ TCB_LAYOUT_TURIN = "turin"
 #: What this table selects is the **layout**, which is a property of the
 #: generation rather than of an individual part, so the ranges are AMD's
 #: generation boundaries — taken from the ``sev`` crate's ``identify_cpu`` — and
-#: not a list of parts we have run on. Narrowing them to tested models would
-#: reject other members of a generation whose layout is provably the same. The
-#: gate exists to refuse an *unrecognised generation*, where guessing between
-#: the two layouts would yield plausible but wrong values with no error; it is
-#: not a claim that every model in range has been exercised.
-#:
-#: Which parts have actually been exercised is recorded per entry below, and the
-#: distinction matters, because the entries do not rest on equal evidence:
-#:
-#:   - Genoa and Bergamo/Siena are separate entries but AMD ships them the
-#:     *byte-identical* firmware image — ``amd_sev_fam19h_model1xh.sbin`` and
-#:     ``amd_sev_fam19h_modelaxh.sbin`` had the same SHA-256 on the test host —
-#:     so validating one substantiates the other by construction. They are kept
-#:     apart only so a report names the silicon it came from; the ``sev`` crate
-#:     folds both into "Genoa" because its ``Generation`` selects a KDS product
-#:     path, where they genuinely do share an endpoint.
-#:   - Milan has a *different* firmware image (``model0xh``), so its entry rests
-#:     on the weaker claim that its layout is legacy, per the ``sev`` crate.
-#:
-#: Keyed on family/model *pairs*, not family/model/stepping triples: AMD scopes
-#: SEV firmware images by family and model only, and stepping appears nowhere in
-#: that partitioning. snpguest's ``get_processor_model`` (``src/fetch.rs``)
-#: splits the same way for VCEK lookup.
+#: not a list of parts we have run on.
 #:
 #: To record a generation as exercised: run the ID block test on that hardware,
 #: confirm the decoded fields against ``snphost show tcb`` and the values the ID
-#: block was built with, then note the part in the entry's comment and in the
-#: module docstring.
+#: block was built with, then note the part in the entry's comment.
 SUPPORTED_GENERATIONS: tuple[tuple[int, range, str, str], ...] = (
     # (cpuid_family, model range, name, TCB layout)
     (0x19, range(0x00, 0x10), "Milan", TCB_LAYOUT_LEGACY),          # layout inferred
@@ -431,11 +384,7 @@ def parse(
     #
     # The host's CPUID is authoritative when supplied: it describes the silicon
     # this code is running on, which is the thing the layout actually depends
-    # on. The report's copy is a cross-check, and only a useful one when it can
-    # be resolved — firmware does not always populate it. Observed on SEV
-    # firmware 1.55 build 38, which leaves all three bytes zero in version-3
-    # reports; build 39 fills them in. Refusing such a report would reject a
-    # decodable one over a field the platform declined to fill.
+    # on. The report's copy is a cross-check.
     cpuid_note: str | None = None
     if generation is not None and cpuid is not None:
         try:

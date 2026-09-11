@@ -65,8 +65,7 @@ class IdBlockMetadata:
 
     Read once and shared between the step that builds an ID block and the step
     that checks the resulting report, so the two cannot disagree about what was
-    asked for.  Deriving expectations separately from the environment would let
-    the check pass against values the ID block was never built with.
+    asked for.
     """
 
     family_id: str

@@ -413,9 +413,8 @@ def steps() -> list[BaseStep]:
     # actually active, so elsewhere there is nothing to assert.  The case is
     # left out of the step list rather than run and failed, with an info step
     # in its place: a case that vanishes silently is indistinguishable from one
-    # that passed.  Reporting it as "pass" does overload that outcome — a
-    # first-class per-step "not applicable on this platform" result would say
-    # so plainly, and is the better home for this once one exists.
+    # that passed.  Need a first-class per-step "not applicable on this 
+    # platform" result.
     if smt_active:
         steps_list += [
             Step.for_callable(
