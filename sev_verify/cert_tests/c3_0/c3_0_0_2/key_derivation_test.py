@@ -9,10 +9,12 @@ consistent derived keys:
   - TCB version sensitivity and committed-TCB bound enforcement
   - Guest Field Select (GFS) sensitivity and per-bit field mixing
 
-The attestation report is fetched first to learn the guest SVN and
-committed TCB bounds, which drive the SVN and TCB loops dynamically.
-All snpguest key commands run on the guest via vsock from callable
-steps on the host — no guest-side script is needed.
+The attestation report is fetched first and read directly as bytes via
+:mod:`sev_verify.attestation_report` — see that module for why binary
+parsing is used in place of ``snpguest display report`` text, and for how
+TCB_VERSION's generation-dependent byte layout is resolved. REPORTED_TCB is
+the platform's committed TCB at report time, which drives the TCB loop's
+bounds; GUEST_SVN and VMPL drive the other two.
 
 Above-bound TCB tests use committed+1, committed+2, committed+3 per
 component, derived from the runtime attestation report. No static
@@ -25,12 +27,10 @@ family_id, image_id).
 
 from __future__ import annotations
 
-import re
-import subprocess
-from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional
 
+from sev_verify import attestation_report
 from sev_verify.cert_tests.c3_0.c3_0_0_0.attestation_test import calculate_measurement  # noqa: F401
 from sev_verify.guest_vsock import GuestCommandError, fetch_guest_file_bytes, run_guest_command
 from sev_verify.models import BaseStep, Step, StepContext, StepHandlerResult
@@ -50,70 +50,33 @@ vm_profile = VMProfile(
 _TCB_ABOVE_BOUND_STEPS = 3  # number of values above committed bound to test per component
 
 
-# ── TCB / report parsing helpers ──────────────────────────────────────────────
+# ── Report helpers ─────────────────────────────────────────────────────────────
 
-@dataclass
-class TcbVersion:
-    boot_loader: int = 0
-    tee: int = 0
-    snp: int = 0
-    microcode: int = 0
+def _load_report(ctx: StepContext) -> attestation_report.AttestationReport:
+    """Re-read report.bin (an artifact from the "Pull attestation report" step).
 
-    def to_u64(self) -> int:
-        return (
-            (self.boot_loader & 0xFF) |
-            ((self.tee & 0xFF) << 8) |
-            ((self.snp & 0xFF) << 48) |
-            ((self.microcode & 0xFF) << 56)
-        )
+    Cheap enough to call from every step that needs a field off the report,
+    rather than threading parsed values through a sidecar file.
+    """
+    return attestation_report.read(
+        ctx.artifact_dir / "report.bin",
+        generation=attestation_report.host_generation(),
+    )
 
 
-@dataclass
-class ReportInfo:
-    version: Optional[int] = None
-    guest_svn: int = 0
-    vmpl: int = 0
-    committed_tcb: TcbVersion = None
+def _make_tcb(layout: str, **overrides: int) -> attestation_report.TcbVersion:
+    """Build a TcbVersion with all components zeroed except *overrides*.
 
-    def __post_init__(self):
-        if self.committed_tcb is None:
-            self.committed_tcb = TcbVersion()
-
-
-def _parse_tcb_section(text: str) -> TcbVersion:
-    tcb = TcbVersion()
-    for attr, pattern in [
-        ('boot_loader', r'Boot\s*Loader\s*[:\s]+(0x[0-9a-fA-F]+|[0-9]+)'),
-        ('tee',         r'TEE\s*[:\s]+(0x[0-9a-fA-F]+|[0-9]+)'),
-        ('snp',         r'SNP\s*[:\s]+(0x[0-9a-fA-F]+|[0-9]+)'),
-        ('microcode',   r'Microcode\s*[:\s]+(0x[0-9a-fA-F]+|[0-9]+)'),
-    ]:
-        m = re.search(pattern, text, re.IGNORECASE)
-        if m:
-            setattr(tcb, attr, int(m.group(1), 0))
-    return tcb
-
-
-def _parse_report_info(display_output: str) -> ReportInfo:
-    info = ReportInfo()
-    m = re.search(r'^\s*Version\s*[:\s]+(0x[0-9a-fA-F]+|[0-9]+)',
-                  display_output, re.IGNORECASE | re.MULTILINE)
-    if m:
-        info.version = int(m.group(1), 0)
-    m = re.search(r'Guest\s+SVN\s*[:\s]+(0x[0-9a-fA-F]+|[0-9]+)',
-                  display_output, re.IGNORECASE)
-    if m:
-        info.guest_svn = int(m.group(1), 0)
-    m = re.search(r'^\s*VMPL\s*[:\s]+(0x[0-9a-fA-F]+|[0-9]+)',
-                  display_output, re.IGNORECASE | re.MULTILINE)
-    if m:
-        info.vmpl = int(m.group(1), 0)
-    boundary = r'(?:Current|Committed|Reported|Launch)\s+TCB'
-    m = re.search(rf'Committed\s+TCB\s*:?(.*?)(?={boundary}|\Z)',
-                  display_output, re.DOTALL | re.IGNORECASE)
-    if m:
-        info.committed_tcb = _parse_tcb_section(m.group(1))
-    return info
+    Used to test one TCB component's bound in isolation — the other
+    components are left at 0 (below their own bound), so a rejection can
+    only be attributed to the component under test. ``fmc`` is included
+    only for the Turin layout, which is the only one that has it.
+    """
+    fields = dict(bootloader=0, tee=0, snp=0, microcode=0)
+    if layout == attestation_report.TCB_LAYOUT_TURIN:
+        fields["fmc"] = 0
+    fields.update(overrides)
+    return attestation_report.TcbVersion(**fields)
 
 
 # ── Guest helpers (called from callable steps while VM is running) ─────────────
@@ -149,56 +112,24 @@ def _read_key(path: Path) -> Optional[bytes]:
 # ── Callable step handlers ────────────────────────────────────────────────────
 
 def parse_report(ctx: StepContext) -> StepHandlerResult:
-    """Parse the pulled attestation report and write a bounds sidecar file."""
-    report_file = ctx.artifact_dir / "report.bin"
-    result = subprocess.run(
-        ["snpguest", "display", "report", str(report_file)],
-        capture_output=True, text=True, check=False,
-    )
-    if result.returncode != 0:
-        return StepHandlerResult(exit_code=1, stderr=f"snpguest display report failed:\n{result.stderr}")
+    """Read the pulled attestation report and surface the bounds it carries.
 
-    info = _parse_report_info(result.stdout)
-    c = info.committed_tcb
-    (ctx.artifact_dir / "report_info.txt").write_text(
-        f"version={info.version}\n"
-        f"guest_svn={info.guest_svn}\n"
-        f"vmpl={info.vmpl}\n"
-        f"committed_bl={c.boot_loader}\n"
-        f"committed_tee={c.tee}\n"
-        f"committed_snp={c.snp}\n"
-        f"committed_mc={c.microcode}\n"
-    )
+    Reads report.bin directly rather than parsing ``snpguest display report``
+    text (see :mod:`sev_verify.attestation_report`). Failing fast here — before
+    any of the sensitivity/bound tests run — turns an unparseable report or an
+    unrecognised processor generation into one clear error instead of a
+    cascade of unrelated-looking failures below.
+    """
+    try:
+        report = _load_report(ctx)
+    except attestation_report.ReportError as exc:
+        return StepHandlerResult(exit_code=1, stderr=str(exc))
     return StepHandlerResult(
         exit_code=0,
-        stdout=(f"Report version: {info.version}, Guest SVN: {info.guest_svn}\n"
-                f"Committed TCB: bl={c.boot_loader} tee={c.tee} "
-                f"snp={c.snp} mc={c.microcode}"),
+        stdout=(f"Report version: {report.version}, Guest SVN: {report.guest_svn}\n"
+                f"VMPL: {report.vmpl}, generation: {report.generation}\n"
+                f"Committed TCB: {report.reported_tcb}"),
     )
-
-
-def _load_report_info(ctx: StepContext) -> ReportInfo:
-    info = ReportInfo()
-    f = ctx.artifact_dir / "report_info.txt"
-    if not f.exists():
-        return info
-    for line in f.read_text().splitlines():
-        k, _, v = line.partition("=")
-        if k == "version" and v != "None":
-            info.version = int(v)
-        elif k == "guest_svn":
-            info.guest_svn = int(v)
-        elif k == "vmpl":
-            info.vmpl = int(v)
-        elif k == "committed_bl":
-            info.committed_tcb.boot_loader = int(v)
-        elif k == "committed_tee":
-            info.committed_tcb.tee = int(v)
-        elif k == "committed_snp":
-            info.committed_tcb.snp = int(v)
-        elif k == "committed_mc":
-            info.committed_tcb.microcode = int(v)
-    return info
 
 
 def test_determinism(ctx: StepContext) -> StepHandlerResult:
@@ -214,8 +145,11 @@ def test_determinism(ctx: StepContext) -> StepHandlerResult:
 
 
 def test_vmpl_isolation(ctx: StepContext) -> StepHandlerResult:
-    info = _load_report_info(ctx)
-    cur = info.vmpl
+    try:
+        report = _load_report(ctx)
+    except attestation_report.ReportError as exc:
+        return StepHandlerResult(exit_code=1, stderr=str(exc))
+    cur = report.vmpl
     hi = cur + 1
     ok_cur, err_cur = _derive_key(ctx, f"vmpl{cur}_key.bin", vmpl=cur)
     if not ok_cur:
@@ -252,8 +186,11 @@ def test_root_key_difference(ctx: StepContext) -> StepHandlerResult:
 
 def test_svn(ctx: StepContext) -> StepHandlerResult:
     """SVN above-bound rejection and sensitivity sweep."""
-    info = _load_report_info(ctx)
-    max_svn = info.guest_svn
+    try:
+        report = _load_report(ctx)
+    except attestation_report.ReportError as exc:
+        return StepHandlerResult(exit_code=1, stderr=str(exc))
+    max_svn = report.guest_svn
     lines = [f"Guest SVN upper bound: {max_svn}"]
     passed = True
 
@@ -295,25 +232,40 @@ def test_svn(ctx: StepContext) -> StepHandlerResult:
 
 def test_tcb(ctx: StepContext) -> StepHandlerResult:
     """TCB above-bound rejection and sensitivity sweep."""
-    info = _load_report_info(ctx)
-    c = info.committed_tcb
-    lines = [f"Committed TCB: bl={c.boot_loader} tee={c.tee} snp={c.snp} mc={c.microcode}"]
+    try:
+        report = _load_report(ctx)
+    except attestation_report.ReportError as exc:
+        return StepHandlerResult(exit_code=1, stderr=str(exc))
+    c = report.reported_tcb
+    if c is None:
+        return StepHandlerResult(
+            exit_code=1,
+            stderr="TCB_VERSION could not be decoded for this report — "
+                   "unrecognised processor generation (see attestation_report.py)",
+        )
+    _, layout = attestation_report.host_generation()
+    lines = [f"Committed TCB: {c}"]
     passed = True
 
+    # Component list is generation-dependent: fmc only exists on Turin+.
+    components = [
+        ("bootloader", "Boot Loader", c.bootloader),
+        ("tee",        "TEE",         c.tee),
+        ("snp",        "SNP",         c.snp),
+        ("microcode",  "Microcode",   c.microcode),
+    ]
+    if c.fmc is not None:
+        components.append(("fmc", "FMC", c.fmc))
+
     # Above-bound: committed+1 .. committed+N per component must all be rejected.
-    for comp, label, max_val in [
-        ("boot_loader", "Boot Loader", c.boot_loader),
-        ("tee",         "TEE",         c.tee),
-        ("snp",         "SNP",         c.snp),
-        ("microcode",   "Microcode",   c.microcode),
-    ]:
+    for comp, label, max_val in components:
         above_vals = [v for v in range(max_val + 1, max_val + _TCB_ABOVE_BOUND_STEPS + 1)
                       if v <= 0xFF]
         if not above_vals:
             lines.append(f"{label}: committed={max_val} is max (0xFF) — no above-bound values to test")
             continue
         for val in above_vals:
-            tcb_u64 = TcbVersion(**{comp: val}).to_u64()
+            tcb_u64 = _make_tcb(layout, **{comp: val}).to_u64(layout)
             ok, _ = _derive_key(ctx, f"tcb_above_{comp}_{val}.bin",
                                 tcb=tcb_u64, gfs=1 << 5)
             if ok:
@@ -329,14 +281,9 @@ def test_tcb(ctx: StepContext) -> StepHandlerResult:
     # Sensitivity: vary each component from 0 to its committed maximum.
     # Track by tcb_u64 to deduplicate (e.g. val=0 for any component gives the same u64).
     keys: dict[int, bytes] = {}  # tcb_u64 -> key bytes
-    for comp, max_val in [
-        ("boot_loader", c.boot_loader),
-        ("tee",         c.tee),
-        ("snp",         c.snp),
-        ("microcode",   c.microcode),
-    ]:
+    for comp, _label, max_val in components:
         for val in range(0, max_val + 1):
-            tcb_u64 = TcbVersion(**{comp: val}).to_u64()
+            tcb_u64 = _make_tcb(layout, **{comp: val}).to_u64(layout)
             if tcb_u64 in keys:
                 continue  # already derived this exact TCB value
             fname = f"tcb_{comp}_{val}.bin"
