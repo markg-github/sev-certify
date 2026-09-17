@@ -208,6 +208,31 @@ class TcbVersion:
             return cls(bootloader=raw[0], tee=raw[1], snp=raw[6], microcode=raw[7])
         raise ReportUnsupportedCpu(f"unknown TCB layout {layout!r}")
 
+    def to_u64(self, layout: str) -> int:
+        """Encode as the packed u64 the ``--tcb_version`` CLI flag expects.
+
+        Inverse of :meth:`from_bytes` for the given generation layout — kept
+        alongside it so the two byte orderings can never drift apart. A
+        ``fmc`` of ``None`` under the Turin layout is treated as 0.
+        """
+        if layout == TCB_LAYOUT_TURIN:
+            fmc = self.fmc if self.fmc is not None else 0
+            return (
+                (fmc & 0xFF) |
+                ((self.bootloader & 0xFF) << 8) |
+                ((self.tee & 0xFF) << 16) |
+                ((self.snp & 0xFF) << 24) |
+                ((self.microcode & 0xFF) << 56)
+            )
+        if layout == TCB_LAYOUT_LEGACY:
+            return (
+                (self.bootloader & 0xFF) |
+                ((self.tee & 0xFF) << 8) |
+                ((self.snp & 0xFF) << 48) |
+                ((self.microcode & 0xFF) << 56)
+            )
+        raise ReportUnsupportedCpu(f"unknown TCB layout {layout!r}")
+
     def __str__(self) -> str:
         base = (
             f"bootloader={self.bootloader} tee={self.tee} "
