@@ -9,6 +9,7 @@ import tomllib
 from datetime import datetime, timezone
 from pathlib import Path
 
+from .cvm_props import update_environment_with_launch_digest
 from .environment import detect_environment
 from .os_info import update_environment_with_guest_os
 from .models import (
@@ -496,6 +497,12 @@ def execute_test(
                         sr = run_guest_pull_step(step, launch.profile, artifact_dir)
             elif step.kind == "callable":
                 sr = run_callable_step(step, ctx)
+                if (
+                    step.handler == "calculate_measurement"
+                    and sr.result == "pass"
+                    and environment is not None
+                ):
+                    update_environment_with_launch_digest(environment, artifact_dir)
             else:
                 sr = StepResult(
                     step=step,
@@ -787,6 +794,8 @@ def main(argv: list[str] | None = None) -> int:
 
     # ── Summary ──────────────────────────────────────────────────
     _section("Summary")
+    if environment.get("launch_digest"):
+        _flush(f"   Launch digest: 0x{environment['launch_digest']}")
     for cr in cert_results:
         highest_passing = _highest_certified_level(cr)
         badge = highest_passing or "---"

@@ -106,8 +106,17 @@ def write_json(
         "levels": levels_out,
     }
 
+    if environment and "launch_digest" in environment:
+        # A fact about the certified guest launch, not host tooling — kept
+        # top-level (sibling to certified_level) rather than folded into
+        # "environment" below, and excluded from that dict so it isn't
+        # reported twice.
+        doc["launch_digest"] = environment["launch_digest"]
+
     if environment:
-        doc["environment"] = environment
+        env_rest = {k: v for k, v in environment.items() if k != "launch_digest"}
+        if env_rest:
+            doc["environment"] = env_rest
 
     if unlabeled:
         doc["unlabeled_tests"] = [_test_dict(tr) for tr in unlabeled]
@@ -146,6 +155,9 @@ def write_markdown(
     w(f"**Certified level:** {certified_level or 'none'}")
     if cr.certification.max_certification_level:
         w(f"**Max certification level:** {cr.certification.max_certification_level}")
+    if environment and "launch_digest" in environment:
+        digest = environment["launch_digest"]
+        w(f"**Launch digest:** {f'0x{digest}' if digest else 'unavailable'}")
     w(f"**Started:** {cr.started_at}")
     w(f"**Completed:** {cr.completed_at}")
     w("")

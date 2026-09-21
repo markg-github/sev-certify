@@ -186,6 +186,27 @@ def read_measurement(artifact_dir: Path) -> str:
     return body
 
 
+def update_environment_with_launch_digest(
+    environment: dict[str, str | None], artifact_dir: Path,
+) -> None:
+    """Update environment dict in-place with the guest launch digest.
+
+    "Launch digest" is the same value calculate_measurement wrote to
+    guest_measurement.txt — AMD's ABI calls the field MEASUREMENT; this
+    project's reporting uses "launch digest" for the same bytes. First writer
+    wins (mirrors update_environment_with_guest_os in os_info.py): the digest
+    is constant for a given image/OVMF/vcpu-type across every test in a run,
+    so there is nothing to gain by re-reading it, and if the first attempt
+    fails every later attempt would fail identically (same host, same image).
+    """
+    if "launch_digest" in environment:
+        return
+    try:
+        environment["launch_digest"] = read_measurement(artifact_dir)
+    except MeasurementError:
+        environment["launch_digest"] = None
+
+
 def calculate_measurement(ctx: StepContext) -> StepHandlerResult:
     """Calculate the expected guest launch measurement via snpguest.
 
