@@ -79,15 +79,24 @@ def capture_profile_data(ctx: StepContext) -> StepHandlerResult:
     Guarded on ctx.launch: a failed launch (bad CPU model, etc.) produces one
     clear "launch: FAILED" line instead of a cascade of vsock errors from
     trying to talk to a guest that never came up.
+
+    Written to a per-profile .txt artifact as well as returned in stdout:
+    write_json/write_markdown only include step stdout for a *failing* test
+    (see output.py's _step_dict), so a step that passes — which is every
+    step here on a good run — would otherwise leave this data completely
+    unrecoverable from the standard cert/GitHub-issue output.
     """
     cpu_model = ctx.profile.cpu_model
+    safe_name = cpu_model.replace(" ", "_")
     lines = [f"cpu_model={cpu_model}"]
 
     launch = ctx.launch
     if launch is None or not launch.ok:
         reason = launch.message if launch is not None else "no launch attempt recorded"
         lines.append(f"launch: FAILED — {reason}")
-        return StepHandlerResult(exit_code=0, stdout="\n".join(lines))
+        text = "\n".join(lines)
+        (ctx.artifact_dir / f"profile_data_{safe_name}.txt").write_text(text + "\n")
+        return StepHandlerResult(exit_code=0, stdout=text)
 
     lines.append(f"qemu_command={launch.command_line}")
 
@@ -103,7 +112,7 @@ def capture_profile_data(ctx: StepContext) -> StepHandlerResult:
             ctx.profile, "snpguest report report.bin request.bin --random", timeout=60,
         )
         data = fetch_guest_file_bytes(ctx.profile, "report.bin", timeout=30)
-        report_path = ctx.artifact_dir / f"report_{cpu_model.replace(' ', '_')}.bin"
+        report_path = ctx.artifact_dir / f"report_{safe_name}.bin"
         report_path.write_bytes(data)
         report = attestation_report.read(
             report_path, generation=attestation_report.host_generation(),
@@ -113,7 +122,9 @@ def capture_profile_data(ctx: StepContext) -> StepHandlerResult:
     except (GuestVsockError, attestation_report.ReportError) as exc:
         lines.append(f"(attestation report unavailable: {exc})")
 
-    return StepHandlerResult(exit_code=0, stdout="\n".join(lines))
+    text = "\n".join(lines)
+    (ctx.artifact_dir / f"profile_data_{safe_name}.txt").write_text(text + "\n")
+    return StepHandlerResult(exit_code=0, stdout=text)
 
 
 def steps() -> list[BaseStep]:
