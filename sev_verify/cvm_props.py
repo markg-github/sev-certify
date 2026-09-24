@@ -34,6 +34,7 @@ from cryptography.hazmat.primitives.serialization import (
     PrivateFormat,
 )
 
+from . import attestation_report
 from .models import StepContext, StepHandlerResult
 from .vm_profile import VMProfileError
 
@@ -189,22 +190,32 @@ def read_measurement(artifact_dir: Path) -> str:
 def update_environment_with_launch_digest(
     environment: dict[str, str | None], artifact_dir: Path,
 ) -> None:
-    """Update environment dict in-place with the guest launch digest.
+    """Update environment dict in-place with the ACTUAL guest launch digest.
 
-    "Launch digest" is the same value calculate_measurement wrote to
-    guest_measurement.txt — AMD's ABI calls the field MEASUREMENT; this
-    project's reporting uses "launch digest" for the same bytes. First writer
-    wins (mirrors update_environment_with_guest_os in os_info.py): the digest
-    is constant for a given image/OVMF/vcpu-type across every test in a run,
-    so there is nothing to gain by re-reading it, and if the first attempt
-    fails every later attempt would fail identically (same host, same image).
+    Read from a pulled attestation report's MEASUREMENT field — hardware's
+    own record of what was actually measured at launch — rather than the
+    precomputed value calculate_measurement writes to guest_measurement.txt.
+    The two normally agree (SNP firmware enforces it whenever an ID block is
+    used), but this project's reporting wants the real, hardware-attested
+    value, not the prediction: notably, for the CPU-profile survey, nothing
+    has taught the predicted side about non-default --vcpu-type/--vcpu-family
+    values yet, so it isn't a trustworthy reference there at all.
+
+    First writer wins (mirrors update_environment_with_guest_os in
+    os_info.py): the digest is constant for a given image/OVMF/vcpu-type
+    across every test in a run, so there is nothing to gain by re-reading it.
     """
     if "launch_digest" in environment:
         return
     try:
-        environment["launch_digest"] = read_measurement(artifact_dir)
-    except MeasurementError:
+        report = attestation_report.read(
+            artifact_dir / "report.bin",
+            generation=attestation_report.host_generation(),
+        )
+    except attestation_report.ReportError:
         environment["launch_digest"] = None
+        return
+    environment["launch_digest"] = report.measurement.hex()
 
 
 def calculate_measurement(ctx: StepContext) -> StepHandlerResult:

@@ -495,14 +495,14 @@ def execute_test(
                         sr = run_guest_step(step, launch.profile)
                     elif launch is not None:
                         sr = run_guest_pull_step(step, launch.profile, artifact_dir)
+                        if (
+                            sr.result == "pass"
+                            and step.guest_src == "report.bin"
+                            and environment is not None
+                        ):
+                            update_environment_with_launch_digest(environment, artifact_dir)
             elif step.kind == "callable":
                 sr = run_callable_step(step, ctx)
-                if (
-                    step.handler == "calculate_measurement"
-                    and sr.result == "pass"
-                    and environment is not None
-                ):
-                    update_environment_with_launch_digest(environment, artifact_dir)
             else:
                 sr = StepResult(
                     step=step,
