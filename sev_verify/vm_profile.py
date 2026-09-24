@@ -38,6 +38,11 @@ DEFAULT_MEMORY_MB = 4096
 DEFAULT_VSOCK_CID = 3
 DEFAULT_VSOCK_PORT = 5000
 HOST_DATA_SIZE = 32
+# QEMU's -cpu value. "host" means pass through the physical CPU instead of a
+# fixed named model — see cvm_props.calculate_measurement, which must declare
+# a matching --vcpu-type/--vcpu-family for the precomputed measurement to
+# agree with what the guest actually launches under.
+DEFAULT_CPU_MODEL = "EPYC-v4"
 
 
 class VMProfileError(Exception):
@@ -92,6 +97,7 @@ class VMProfile:
     # QEMU variables
     qemu_binary: str = DEFAULT_QEMU_BINARY
     ovmf_path: str | None = None
+    cpu_model: str = DEFAULT_CPU_MODEL
     memory_mb: int = DEFAULT_MEMORY_MB
     guest_error_log: str = DEFAULT_GUEST_ERROR_LOG
     # QEMU user-mode NAT: guest outbound Internet (e.g. certificate downloads).
@@ -324,7 +330,7 @@ def build_qemu_command(profile: VMProfile) -> list[str]:
         "-machine",
         "q35,memory-encryption=sev0,memory-backend=ram1",
         "-cpu",
-        "EPYC-v4",
+        profile.cpu_model,
         "-monitor",
         "none",
         "-display",

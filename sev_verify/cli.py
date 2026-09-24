@@ -709,6 +709,8 @@ def main(argv: list[str] | None = None) -> int:
         return 1
 
     _flush(f"   Guest:  {guest_path}")
+    if environment.get("host_cpu_model_name"):
+        _flush(f"   CPU:    {environment['host_cpu_model_name']}")
     if environment.get("host_os_pretty_name"):
         _flush(f"   Host:   {environment['host_os_pretty_name']}")
     if environment.get("kernel_version"):

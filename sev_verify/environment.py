@@ -75,6 +75,39 @@ def _get_ovmf_version(path: str) -> str | None:
     return None
 
 
+def _get_host_cpuid() -> dict[str, str | None]:
+    """Read host CPU family/model/stepping and identifying strings from /proc/cpuinfo.
+
+    Family/model/stepping decide the TCB_VERSION byte layout used elsewhere
+    (see attestation_report.py); "model name" is only for human identification
+    in reports and isn't parsed by anything.
+    """
+    fields: dict[str, str | None] = {
+        "host_cpu_family": None,
+        "host_cpu_model": None,
+        "host_cpu_stepping": None,
+        "host_cpu_model_name": None,
+    }
+    key_to_field = {
+        "cpu family": "host_cpu_family",
+        "model": "host_cpu_model",
+        "stepping": "host_cpu_stepping",
+        "model name": "host_cpu_model_name",
+    }
+    try:
+        with open("/proc/cpuinfo", encoding="utf-8") as f:
+            for line in f:
+                key, _, value = line.partition(":")
+                field_name = key_to_field.get(key.strip())
+                if field_name and fields[field_name] is None:
+                    fields[field_name] = value.strip()
+                if all(fields.values()):
+                    break
+    except OSError:
+        pass
+    return fields
+
+
 def detect_environment(
     *,
     qemu_binary: str = "qemu-system-x86_64",
@@ -94,4 +127,5 @@ def detect_environment(
         "host_os_name": host_os.get("host_os_name"),
         "host_os_release": host_os.get("host_os_release"),
         "host_os_pretty_name": host_os.get("host_os_pretty_name"),
+        **_get_host_cpuid(),
     }

@@ -164,6 +164,13 @@ def write_markdown(
 
     if environment:
         env_lines: list[str] = []
+        if environment.get("host_cpu_model_name"):
+            cpu_line = environment["host_cpu_model_name"]
+            fms = (environment.get("host_cpu_family"), environment.get("host_cpu_model"),
+                   environment.get("host_cpu_stepping"))
+            if all(v is not None for v in fms):
+                cpu_line = f"{cpu_line} (family {fms[0]}, model {fms[1]}, stepping {fms[2]})"
+            env_lines.append(f"- **Host CPU:** {cpu_line}")
         if environment.get("host_os_pretty_name"):
             env_lines.append(f"- **Host OS:** {environment['host_os_pretty_name']}")
         elif environment.get("host_os_name"):

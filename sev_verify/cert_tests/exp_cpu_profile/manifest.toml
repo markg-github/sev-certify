@@ -1,0 +1,8 @@
+version = "cpu-profile-survey"
+description = "Experiment: launch the guest under several QEMU CPU profiles and record the real HW launch measurement, guest CPUID, and QEMU command line for each (see exp/passthrough-launch-digest)"
+
+[[tests]]
+name = "cpu-profile-survey"
+description = "Survey multiple -cpu profiles (fixed models + host passthrough), capturing actual measurement, guest CPUID, and QEMU command line per profile"
+module = "cert_tests.exp_cpu_profile.survey.cpu_profile_survey"
+scope = "mixed"
