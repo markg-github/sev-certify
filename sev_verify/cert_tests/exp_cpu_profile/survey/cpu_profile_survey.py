@@ -49,8 +49,17 @@ PROFILES: tuple[tuple[str, str], ...] = (
 #: actually sees, which is what would catch QEMU silently downgrading an
 #: incompatible profile. Not to be confused with the attestation report's own
 #: CPUID field, which always reflects the physical host regardless of -cpu.
+#:
+#: Four independent `grep -m1` calls, not one call with an alternation: a
+#: single -m1 across all four patterns stops at the first matching LINE in
+#: the whole file, which is always "cpu family" (it appears earliest in
+#: /proc/cpuinfo) — silently dropping model/stepping/model name every time.
+#: The guest agent runs this via shell=True, so `;` works.
 _GUEST_CPUID_COMMAND = (
-    r"grep -m1 -E '^model name|^cpu family|^model[[:space:]]*:|^stepping' /proc/cpuinfo"
+    "grep -m1 '^cpu family' /proc/cpuinfo; "
+    "grep -m1 '^model[[:space:]]*:' /proc/cpuinfo; "
+    "grep -m1 '^stepping' /proc/cpuinfo; "
+    "grep -m1 '^model name' /proc/cpuinfo"
 )
 
 
