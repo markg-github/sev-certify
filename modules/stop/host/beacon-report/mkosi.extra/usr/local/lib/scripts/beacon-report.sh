@@ -3,19 +3,34 @@ set -euo pipefail
 
 RESULTS_DIR="/root/results"
 SEV_VERIFY_LOG="${RESULTS_DIR}/sev-verify.log"
+JSON_FILE="${RESULTS_DIR}/cert-combined.json"
+MD_FILE="${RESULTS_DIR}/cert-combined.md"
+
+# Exactly one `beacon report` call is made per boot: dispatch advertises a
+# single consumable service-discovery lease per boot session, so a second
+# call in the same boot fails with "no dispatch services found" (confirmed
+# on real hardware). sev_verify merges every manifest that ran into one
+# cert-combined.json/.md for exactly this reason — this script used to loop
+# over cert-*.json and call `beacon report` once per file, which broke the
+# moment a run produced more than one.
 
 build_beacon_body() {
-  local md_file=$1
   local body_file
   body_file=$(mktemp)
 
-  cat "$md_file" > "$body_file"
-  if [ -f "$SEV_VERIFY_LOG" ]; then
+  cat "$MD_FILE" > "$body_file"
+
+  # The raw log is large and mostly redundant with the structured "Details"
+  # sections cert-combined.md already carries, so it's only worth the space
+  # when something failed. Trimmed to a tail, not the whole thing: GitHub's
+  # issue/comment body limit is 65,536 characters, and it must never crowd
+  # out the structured per-certification content, which is never truncated.
+  if [ "$OVERALL_RESULT" != "pass" ] && [ -f "$SEV_VERIFY_LOG" ]; then
     {
       echo ""
-      echo "### sev-verify output"
+      echo "### sev-verify output (tail)"
       echo '```'
-      cat "$SEV_VERIFY_LOG"
+      tail -c 20000 "$SEV_VERIFY_LOG"
       echo '```'
     } >> "$body_file"
   fi
@@ -44,50 +59,45 @@ fi
 # Fetch AMD processor model
 PROC_LABEL=$(/usr/bin/python3 /usr/local/lib/scripts/get_processor_model.py series)
 
-# Loop over each certification result JSON produced by sev-verify
-shopt -s nullglob
-json_files=("${RESULTS_DIR}"/cert-*.json)
-if [ ${#json_files[@]} -eq 0 ]; then
-    echo "No certification results found in ${RESULTS_DIR}" >&2
+if [ ! -f "$JSON_FILE" ]; then
+    echo "No combined certification results found: ${JSON_FILE}" >&2
+    exit 1
+fi
+if [ ! -f "$MD_FILE" ]; then
+    echo "Combined markdown report not found: ${MD_FILE}" >&2
     exit 1
 fi
 
-for json_file in "${json_files[@]}"; do
-  # Parse fields from sev-verify JSON output
-  cert_version=$(jq -r '.certification_version' "$json_file")
-  certified_level=$(jq -r '.certified_level // empty' "$json_file")  # null -> empty string
+# Parse fields from sev-verify's combined JSON output
+CERT_VERSIONS=$(jq -r '[.certifications[].certification_version] | join(", ")' "$JSON_FILE")
+CERTIFIED_LEVEL=$(jq -r '[.certifications[].certified_level | select(. != null)][0] // empty' "$JSON_FILE")
+OVERALL_RESULT=$(jq -r 'if ([.certifications[].result] | all(. == "pass")) then "pass" else "fail" end' "$JSON_FILE")
 
-  # Corresponding markdown report
-  md_file="${RESULTS_DIR}/cert-${cert_version}.md"
-  if [ ! -f "$md_file" ]; then
-    echo "Markdown report not found: ${md_file}" >&2
-    continue
-  fi
+# Build title
+if [ -n "$OS_VERSION" ]; then
+  SEV_TITLE="${OS_NAME} ${OS_VERSION} SEV versions: ${CERT_VERSIONS}"
+else
+  SEV_TITLE="${OS_NAME} SEV versions: ${CERT_VERSIONS}"
+fi
 
-  # Build title
-  if [ -n "$OS_VERSION" ]; then
-    SEV_TITLE="${OS_NAME} ${OS_VERSION} SEV version ${cert_version}"
-  else
-    SEV_TITLE="${OS_NAME} SEV version ${cert_version}"
-  fi
+# Set up parameters
+PARAMS=()
 
-  # Set up parameters
-  PARAMS=()
+# Add labels
+PARAMS+=("--label" "certificate")
+PARAMS+=("--label" "os-${OS_LABEL}")
+PARAMS+=("--label" "proc-${PROC_LABEL}")
 
-  # Add labels
-  PARAMS+=("--label" "certificate")
-  PARAMS+=("--label" "os-${OS_LABEL}")
-  PARAMS+=("--label" "proc-${PROC_LABEL}")
+# Add milestone for max achieved certification level, if any certification
+# in this run achieved one (there's realistically only ever one leveled
+# certification per run; experimental manifests have no level at all).
+if [ -n "$CERTIFIED_LEVEL" ]; then
+  PARAMS+=("--milestone" "c${CERTIFIED_LEVEL}")
+fi
 
-  # Add milestone for max achieved certification level
-  if [ -n "$certified_level" ]; then
-    PARAMS+=("--milestone" "c${certified_level}")
-  fi
+body_file=$(build_beacon_body)
 
-  body_file=$(build_beacon_body "$md_file")
+beacon report --title "$SEV_TITLE" --body "$body_file" "${PARAMS[@]}"
+rm -f "$body_file"
 
-  beacon report --title "$SEV_TITLE" --body "$body_file" "${PARAMS[@]}"
-  rm -f "$body_file"
-
-  echo "Published SEV certificate via beacon with title: $SEV_TITLE"
-done
+echo "Published SEV certificate via beacon with title: $SEV_TITLE"

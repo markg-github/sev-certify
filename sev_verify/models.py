@@ -53,6 +53,12 @@ class BaseStep:
     # Diagnostic hints shown on failure: list of (grep_pattern, message) pairs.
     # If *grep_pattern* appears in stderr or stdout, *message* is printed as a hint.
     hints: list[tuple[str, str]] = field(default_factory=list)
+    # Include this step's stdout/stderr in cert-*.json/.md even when the
+    # enclosing test passes. Reporting normally only keeps output for a
+    # failing test (see output.py's _step_dict) — this is for a step whose
+    # findings ARE the point of the test (e.g. a CPU survey's per-profile
+    # data), which would otherwise vanish silently on a clean run.
+    always_report_output: bool = False
 
     def __post_init__(self) -> None:
         if not self.name:
@@ -151,13 +157,15 @@ class Step:
     type: StepSeverity
     expected_result: str = "exit_code:0"
     timeout: int = 10
+    always_report_output: bool = False
 
-    def _common(self) -> dict[str, str | int]:
+    def _common(self) -> dict[str, str | int | bool]:
         return {
             "name": self.name,
             "type": self.type,
             "expected_result": self.expected_result,
             "timeout": self.timeout,
+            "always_report_output": self.always_report_output,
         }
 
     def host(self, command: str) -> BaseStep:
@@ -192,9 +200,11 @@ class Step:
         *,
         expected_result: str = "exit_code:0",
         timeout: int = 10,
+        always_report_output: bool = False,
     ) -> BaseStep:
         return cls(
-            name=name, type=type, expected_result=expected_result, timeout=timeout
+            name=name, type=type, expected_result=expected_result, timeout=timeout,
+            always_report_output=always_report_output,
         ).host(command)
 
     @classmethod
@@ -206,9 +216,11 @@ class Step:
         *,
         expected_result: str = "exit_code:0",
         timeout: int = 10,
+        always_report_output: bool = False,
     ) -> BaseStep:
         return cls(
-            name=name, type=type, expected_result=expected_result, timeout=timeout
+            name=name, type=type, expected_result=expected_result, timeout=timeout,
+            always_report_output=always_report_output,
         ).guest(command)
 
     @classmethod
@@ -219,9 +231,11 @@ class Step:
         *,
         expected_result: str = "exit_code:0",
         timeout: int = 10,
+        always_report_output: bool = False,
     ) -> BaseStep:
         return cls(
-            name=name, type=type, expected_result=expected_result, timeout=timeout
+            name=name, type=type, expected_result=expected_result, timeout=timeout,
+            always_report_output=always_report_output,
         ).vm_launch()
 
     @classmethod
@@ -232,9 +246,11 @@ class Step:
         *,
         expected_result: str = "exit_code:0",
         timeout: int = 10,
+        always_report_output: bool = False,
     ) -> BaseStep:
         return cls(
-            name=name, type=type, expected_result=expected_result, timeout=timeout
+            name=name, type=type, expected_result=expected_result, timeout=timeout,
+            always_report_output=always_report_output,
         ).vm_stop()
 
     @classmethod
@@ -247,9 +263,11 @@ class Step:
         *,
         expected_result: str = "exit_code:0",
         timeout: int = 10,
+        always_report_output: bool = False,
     ) -> BaseStep:
         return cls(
-            name=name, type=type, expected_result=expected_result, timeout=timeout
+            name=name, type=type, expected_result=expected_result, timeout=timeout,
+            always_report_output=always_report_output,
         ).guest_pull(guest_src, host_dest)
 
     @classmethod
@@ -261,9 +279,11 @@ class Step:
         *,
         expected_result: str = "exit_code:0",
         timeout: int = 10,
+        always_report_output: bool = False,
     ) -> BaseStep:
         return cls(
-            name=name, type=type, expected_result=expected_result, timeout=timeout
+            name=name, type=type, expected_result=expected_result, timeout=timeout,
+            always_report_output=always_report_output,
         ).call(handler)
 
 

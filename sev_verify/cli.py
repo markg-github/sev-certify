@@ -20,7 +20,7 @@ from .models import (
     TestDefinition,
     TestResult,
 )
-from .output import write_json, write_markdown
+from .output import write_combined_json, write_combined_markdown, write_json, write_markdown
 from .runner import (
     effective_vm_profile,
     import_test_module,
@@ -766,6 +766,7 @@ def main(argv: list[str] | None = None) -> int:
 
     # ── Run certifications ───────────────────────────────────────
     cert_results: list[CertificationResult] = []
+    certified_levels: list[str | None] = []
     for manifest_path, level_filters in manifest_entries:
         cert = load_manifest(manifest_path)
         cert = _filter_tests(cert, level_filters)
@@ -788,10 +789,28 @@ def main(argv: list[str] | None = None) -> int:
         total_passed += sum(1 for tr in cr.test_results if tr.result == "pass")
 
         certified_level = _highest_certified_level(cr)
+        certified_levels.append(certified_level)
         json_path = write_json(cr, certified_level, args.output_dir, environment=environment)
         md_path = write_markdown(cr, certified_level, args.output_dir, environment=environment)
         _flush(f"   Wrote {json_path}")
         _flush(f"   Wrote {md_path}")
+        _flush("")
+
+    # One combined report across every manifest that ran, in addition to the
+    # per-manifest files above — dispatch only accepts one `beacon report`
+    # call per boot (confirmed on real hardware: a second call in the same
+    # boot fails with "no dispatch services found"), so beacon-report.sh
+    # needs a single file to read regardless of how many manifests ran.
+    if cert_results:
+        combined_results = list(zip(cert_results, certified_levels))
+        combined_json_path = write_combined_json(
+            combined_results, args.output_dir, environment=environment,
+        )
+        combined_md_path = write_combined_markdown(
+            combined_results, args.output_dir, environment=environment,
+        )
+        _flush(f"   Wrote {combined_json_path}")
+        _flush(f"   Wrote {combined_md_path}")
         _flush("")
 
     # ── Summary ──────────────────────────────────────────────────

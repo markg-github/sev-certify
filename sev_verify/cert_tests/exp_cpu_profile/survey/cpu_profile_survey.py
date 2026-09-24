@@ -161,6 +161,10 @@ def steps() -> list[BaseStep]:
                 type="info",
                 handler="capture_profile_data",
                 timeout=90,
+                # This step's findings ARE the point of the test — without
+                # this, guest CPUID/measurement silently vanish from
+                # cert-*.json/.md on a clean run (see output.py's _step_dict).
+                always_report_output=True,
             ),
             Step.for_vm_stop(
                 name=f"Stop VM ({slug})",

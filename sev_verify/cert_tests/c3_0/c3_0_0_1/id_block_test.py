@@ -343,6 +343,7 @@ def steps() -> list[BaseStep]:
             type="setup",
             handler="calculate_measurement",
             timeout=60,
+            always_report_output=True,
         ),
         Step.for_callable(
             name="Generate ID block",
