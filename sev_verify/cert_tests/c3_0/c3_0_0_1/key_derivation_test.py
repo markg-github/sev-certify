@@ -281,11 +281,13 @@ def test_tcb(ctx: StepContext) -> StepHandlerResult:
     # Sensitivity: vary each component from 0 to its committed maximum.
     # Track by tcb_u64 to deduplicate (e.g. val=0 for any component gives the same u64).
     keys: dict[int, bytes] = {}  # tcb_u64 -> key bytes
+    attempted: set[int] = set()  # tcb_u64 values we tried to derive
     for comp, _label, max_val in components:
         for val in range(0, max_val + 1):
             tcb_u64 = _make_tcb(layout, **{comp: val}).to_u64(layout)
-            if tcb_u64 in keys:
+            if tcb_u64 in attempted:
                 continue  # already derived this exact TCB value
+            attempted.add(tcb_u64)
             fname = f"tcb_{comp}_{val}.bin"
             ok, err = _derive_key(ctx, fname, tcb=tcb_u64, gfs=1 << 5)
             if ok:
@@ -295,9 +297,14 @@ def test_tcb(ctx: StepContext) -> StepHandlerResult:
             else:
                 lines.append(f"TCB {comp}={val} (u64=0x{tcb_u64:016x}) rejected (unexpected): {err}")
 
-    if len(keys) < 2:
+    if len(attempted) < 2:
         lines.append("TCB sensitivity N/A — all committed components are zero")
         return StepHandlerResult(exit_code=0, stdout="\n".join(lines))
+    if len(keys) < 2:
+        return StepHandlerResult(
+            exit_code=1,
+            stderr="\n".join(lines) + "\nFewer than 2 successful TCB derivations",
+        )
 
     if len(set(keys.values())) == len(keys):
         lines.append(f"All {len(keys)} distinct TCB values produce distinct keys")
