@@ -32,7 +32,7 @@ from typing import Optional
 
 from sev_verify import attestation_report
 from sev_verify.cert_tests.c3_0.c3_0_0_0.attestation_test import calculate_measurement  # noqa: F401
-from sev_verify.guest_vsock import GuestCommandError, fetch_guest_file_bytes, run_guest_command
+from sev_verify.guest_vsock import fetch_guest_file_bytes, run_guest_command
 from sev_verify.models import BaseStep, Step, StepContext, StepHandlerResult
 from sev_verify.vm_profile import VMProfile
 
@@ -96,7 +96,12 @@ def _derive_key(ctx: StepContext, filename: str, root: str = "vcek",
     guest running at VMPL 1 or higher.
 
     Returns (success, message). On success the key file is written locally.
-    On failure the error message is returned without raising.
+    A non-zero exit from snpguest (the firmware rejected the request) is
+    returned as (False, message). A failure to fetch the key after snpguest
+    succeeded is *not* a rejection, so it raises GuestCommandError instead of
+    being folded into the same return value: callers that read False as
+    "bound enforced" would otherwise report PASS for a request the firmware
+    accepted.
     """
     if vmpl is None:
         vmpl = _current_vmpl(ctx)
@@ -105,12 +110,14 @@ def _derive_key(ctx: StepContext, filename: str, root: str = "vcek",
     result = run_guest_command(ctx.profile, cmd, timeout=30)
     if result.exit_code != 0:
         return False, result.stderr.strip() or result.stdout.strip()
-    try:
-        data = fetch_guest_file_bytes(ctx.profile, filename, timeout=30)
-    except GuestCommandError as e:
-        return False, str(e)
+    data = fetch_guest_file_bytes(ctx.profile, filename, timeout=30)
     (ctx.artifact_dir / filename).write_bytes(data)
     return True, ""
+
+
+def _reason(err: str) -> str:
+    """First line of a rejection message, for the per-value log lines."""
+    return err.splitlines()[0] if err else "no message"
 
 
 def _read_key(path: Path) -> Optional[bytes]:
@@ -223,14 +230,24 @@ def test_svn(ctx: StepContext) -> StepHandlerResult:
     lines = [f"Guest SVN upper bound: {max_svn}"]
     passed = True
 
+    # Control: the same request at the bound must succeed, otherwise a
+    # rejection above the bound says nothing about the bound.
+    ok, err = _derive_key(ctx, "svn_at_bound.bin", svn=max_svn, gfs=1 << 4)
+    if not ok:
+        return StepHandlerResult(
+            exit_code=1,
+            stderr=f"SVN={max_svn} (the bound) was rejected, so rejections above it "
+                   f"cannot be attributed to the bound: {_reason(err)}",
+        )
+
     # Above-bound: SVN max_svn+1, max_svn+2, max_svn+3 must all be rejected
     for svn in range(max_svn + 1, max_svn + 4):
-        ok, _ = _derive_key(ctx, f"svn_above_{svn}.bin", svn=svn, gfs=1 << 4)
+        ok, err = _derive_key(ctx, f"svn_above_{svn}.bin", svn=svn, gfs=1 << 4)
         if ok:
             lines.append(f"FAIL: SVN={svn} succeeded — bound ({max_svn}) not enforced")
             passed = False
         else:
-            lines.append(f"Bound enforced: SVN={svn} correctly rejected")
+            lines.append(f"Bound enforced: SVN={svn} rejected ({_reason(err)})")
 
     if not passed:
         return StepHandlerResult(exit_code=1, stderr="\n".join(lines))
@@ -286,6 +303,19 @@ def test_tcb(ctx: StepContext) -> StepHandlerResult:
     if c.fmc is not None:
         components.append(("fmc", "FMC", c.fmc))
 
+    # Control: the committed TCB itself must be accepted, otherwise a
+    # rejection above the bound says nothing about the bound.
+    committed_u64 = _make_tcb(
+        layout, **{comp: val for comp, _label, val in components}
+    ).to_u64(layout)
+    ok, err = _derive_key(ctx, "tcb_at_bound.bin", tcb=committed_u64, gfs=1 << 5)
+    if not ok:
+        return StepHandlerResult(
+            exit_code=1,
+            stderr=f"Committed TCB (u64=0x{committed_u64:016x}) was rejected, so "
+                   f"rejections above it cannot be attributed to the bound: {_reason(err)}",
+        )
+
     # Above-bound: committed+1 .. committed+N per component must all be rejected.
     for comp, label, max_val in components:
         above_vals = [v for v in range(max_val + 1, max_val + _TCB_ABOVE_BOUND_STEPS + 1)
@@ -295,14 +325,14 @@ def test_tcb(ctx: StepContext) -> StepHandlerResult:
             continue
         for val in above_vals:
             tcb_u64 = _make_tcb(layout, **{comp: val}).to_u64(layout)
-            ok, _ = _derive_key(ctx, f"tcb_above_{comp}_{val}.bin",
-                                tcb=tcb_u64, gfs=1 << 5)
+            ok, err = _derive_key(ctx, f"tcb_above_{comp}_{val}.bin",
+                                  tcb=tcb_u64, gfs=1 << 5)
             if ok:
                 lines.append(f"FAIL: {label}={val} succeeded — "
                              f"bound ({max_val}) not enforced")
                 passed = False
             else:
-                lines.append(f"Bound enforced: {label}={val} correctly rejected")
+                lines.append(f"Bound enforced: {label}={val} rejected ({_reason(err)})")
 
     if not passed:
         return StepHandlerResult(exit_code=1, stderr="\n".join(lines))
