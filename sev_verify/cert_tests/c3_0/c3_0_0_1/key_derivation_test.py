@@ -81,14 +81,25 @@ def _make_tcb(layout: str, **overrides: int) -> attestation_report.TcbVersion:
 
 # ── Guest helpers (called from callable steps while VM is running) ─────────────
 
+def _current_vmpl(ctx: StepContext) -> int:
+    """The guest's running VMPL, as recorded by the "Detect running VMPL" step."""
+    return int((ctx.artifact_dir / "vmpl").read_text())
+
+
 def _derive_key(ctx: StepContext, filename: str, root: str = "vcek",
-                vmpl: int = 0, svn: int = 0, tcb: int = 0,
+                vmpl: Optional[int] = None, svn: int = 0, tcb: int = 0,
                 gfs: int = 1) -> tuple[bool, str]:
     """Run snpguest key on the guest, fetch the key bytes to artifact_dir.
+
+    *vmpl* defaults to the guest's running VMPL: the firmware rejects a
+    request below the caller's own VMPL, so a hardcoded 0 would fail for a
+    guest running at VMPL 1 or higher.
 
     Returns (success, message). On success the key file is written locally.
     On failure the error message is returned without raising.
     """
+    if vmpl is None:
+        vmpl = _current_vmpl(ctx)
     cmd = (f"snpguest key {filename} {root} --vmpl {vmpl} "
            f"--guest_svn {svn} --tcb_version {tcb} --guest_field_select {gfs}")
     result = run_guest_command(ctx.profile, cmd, timeout=30)
@@ -127,8 +138,30 @@ def parse_report(ctx: StepContext) -> StepHandlerResult:
     return StepHandlerResult(
         exit_code=0,
         stdout=(f"Report version: {report.version}, Guest SVN: {report.guest_svn}\n"
-                f"VMPL: {report.vmpl}, generation: {report.generation}\n"
+                f"Generation: {report.generation}\n"
                 f"Committed TCB: {report.reported_tcb}"),
+    )
+
+
+def detect_vmpl(ctx: StepContext) -> StepHandlerResult:
+    """Find the guest's running VMPL and record it for the other steps.
+
+    The report's VMPL field is the VMPL *requested* in the report message, not
+    the one the guest runs at. The firmware rejects a key request whose VMPL
+    is below the caller's own, so the lowest VMPL in 0-3 that is accepted is
+    the running VMPL. If none is accepted something else is wrong, and this
+    fails rather than guessing.
+    """
+    errors = []
+    for vmpl in range(4):
+        ok, err = _derive_key(ctx, f"vmpl_probe_{vmpl}.bin", vmpl=vmpl)
+        if ok:
+            (ctx.artifact_dir / "vmpl").write_text(str(vmpl))
+            return StepHandlerResult(exit_code=0, stdout=f"Running VMPL: {vmpl}")
+        errors.append(f"VMPL{vmpl}: {err}")
+    return StepHandlerResult(
+        exit_code=1,
+        stderr="No VMPL 0-3 accepted for key derivation:\n" + "\n".join(errors),
     )
 
 
@@ -145,11 +178,7 @@ def test_determinism(ctx: StepContext) -> StepHandlerResult:
 
 
 def test_vmpl_isolation(ctx: StepContext) -> StepHandlerResult:
-    try:
-        report = _load_report(ctx)
-    except attestation_report.ReportError as exc:
-        return StepHandlerResult(exit_code=1, stderr=str(exc))
-    cur = report.vmpl
+    cur = _current_vmpl(ctx)
     hi = cur + 1
     ok_cur, err_cur = _derive_key(ctx, f"vmpl{cur}_key.bin", vmpl=cur)
     if not ok_cur:
@@ -159,11 +188,11 @@ def test_vmpl_isolation(ctx: StepContext) -> StepHandlerResult:
             exit_code=0,
             stdout=f"Running at VMPL3 — no higher VMPL to compare against (N/A)",
         )
-    ok_hi, _ = _derive_key(ctx, f"vmpl{hi}_key.bin", vmpl=hi)
+    ok_hi, err_hi = _derive_key(ctx, f"vmpl{hi}_key.bin", vmpl=hi)
     if not ok_hi:
         return StepHandlerResult(
-            exit_code=0,
-            stdout=f"VMPL{hi} derivation rejected — N/A",
+            exit_code=1,
+            stderr=f"VMPL{hi} derivation failed after VMPL{cur} succeeded: {err_hi}",
         )
     k_cur = _read_key(ctx.artifact_dir / f"vmpl{cur}_key.bin")
     k_hi = _read_key(ctx.artifact_dir / f"vmpl{hi}_key.bin")
@@ -444,6 +473,12 @@ def steps() -> list[BaseStep]:
             type="required",
             handler="parse_report",
             timeout=30,
+        ),
+        Step.for_callable(
+            name="Detect running VMPL",
+            type="setup",
+            handler="detect_vmpl",
+            timeout=60,
         ),
 
         # All key derivation tests run while VM is up, via vsock loops
