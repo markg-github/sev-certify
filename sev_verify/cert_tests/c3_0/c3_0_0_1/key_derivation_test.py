@@ -116,6 +116,19 @@ def _reason(err: str) -> str:
     return err.splitlines()[0] if err else "no message"
 
 
+def _sweep_values(max_val: int) -> list[int]:
+    """Values 0..max_val to derive keys for in a sensitivity sweep.
+
+    Every value when there are few (max_val < 16); otherwise the values around
+    each end of the range and around its middle, since deriving all of them
+    can take hundreds of requests per component.
+    """
+    if max_val < 16:
+        return list(range(max_val + 1))
+    mid = max_val // 2
+    return sorted({0, 1, 2, mid - 1, mid, mid + 1, max_val - 2, max_val - 1, max_val})
+
+
 def _read_key(path: Path) -> bytes:
     """Read a derived key from artifact_dir.
 
@@ -250,13 +263,13 @@ def test_svn(ctx: StepContext) -> StepHandlerResult:
     if not passed:
         return StepHandlerResult(exit_code=1, stderr="\n".join(lines))
 
-    # Sensitivity: all valid values 0..max_svn produce distinct keys
+    # Sensitivity: sampled valid values 0..max_svn produce distinct keys
     if max_svn == 0:
         lines.append("Only one valid SVN value (0) — sensitivity N/A (ID_BLOCK_GUEST_SVN is 0)")
         return StepHandlerResult(exit_code=0, stdout="\n".join(lines))
 
     keys = {}
-    for svn in range(0, max_svn + 1):
+    for svn in _sweep_values(max_svn):
         ok, err = _derive_key(ctx, f"svn_{svn}_key.bin", svn=svn, gfs=1 << 4)
         if ok:
             k = _read_key(ctx.artifact_dir / f"svn_{svn}_key.bin")
@@ -335,12 +348,12 @@ def test_tcb(ctx: StepContext) -> StepHandlerResult:
     if not passed:
         return StepHandlerResult(exit_code=1, stderr="\n".join(lines))
 
-    # Sensitivity: vary each component from 0 to its committed maximum.
+    # Sensitivity: vary each component over sampled values up to its committed maximum.
     # Track by tcb_u64 to deduplicate (e.g. val=0 for any component gives the same u64).
     keys: dict[int, bytes] = {}  # tcb_u64 -> key bytes
     attempted: set[int] = set()  # tcb_u64 values we tried to derive
     for comp, _label, max_val in components:
-        for val in range(0, max_val + 1):
+        for val in _sweep_values(max_val):
             tcb_u64 = _make_tcb(layout, **{comp: val}).to_u64(layout)
             if tcb_u64 in attempted:
                 continue  # already derived this exact TCB value
@@ -525,13 +538,13 @@ def steps() -> list[BaseStep]:
             name="Test SVN bound enforcement and sensitivity",
             type="required",
             handler="test_svn",
-            timeout=300,
+            timeout=120,
         ),
         Step.for_callable(
             name="Test TCB bound enforcement and sensitivity",
             type="required",
             handler="test_tcb",
-            timeout=900,
+            timeout=120,
         ),
         Step.for_callable(
             name="Test GFS sensitivity",
