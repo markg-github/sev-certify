@@ -20,9 +20,9 @@ Above-bound TCB tests use committed+1, committed+2, committed+3 per
 component, derived from the runtime attestation report. No static
 assumption about platform TCB values is needed.
 
-When sev_verify.id_block is available (from the ID block PR), the guest
-is launched with an ID block, giving richer coverage (non-zero guest SVN,
-family_id, image_id).
+The guest is always launched with an ID block (sev_verify.cvm_props), so
+the report carries a non-zero guest SVN, family_id and image_id; the values
+come from the ID_BLOCK_* environment variables.
 """
 
 from __future__ import annotations
@@ -31,16 +31,12 @@ from pathlib import Path
 from typing import Optional
 
 from sev_verify import attestation_report
-from sev_verify.cert_tests.c3_0.c3_0_0_0.attestation_test import calculate_measurement  # noqa: F401
+# Step handlers are resolved by name from this module's globals, so these
+# imports are used even though nothing here calls them directly.
+from sev_verify.cvm_props import calculate_measurement, generate_id_block  # noqa: F401
 from sev_verify.guest_vsock import fetch_guest_file_bytes, run_guest_command
 from sev_verify.models import BaseStep, Step, StepContext, StepHandlerResult
 from sev_verify.vm_profile import VMProfile
-
-try:
-    from sev_verify.id_block import generate_id_block  # noqa: F401
-    _HAS_ID_BLOCK = True
-except ImportError:
-    _HAS_ID_BLOCK = False
 
 vm_profile = VMProfile(
     image_path="",
@@ -256,7 +252,7 @@ def test_svn(ctx: StepContext) -> StepHandlerResult:
 
     # Sensitivity: all valid values 0..max_svn produce distinct keys
     if max_svn == 0:
-        lines.append("Only one valid SVN value (0) — sensitivity N/A (no ID block)")
+        lines.append("Only one valid SVN value (0) — sensitivity N/A (ID_BLOCK_GUEST_SVN is 0)")
         return StepHandlerResult(exit_code=0, stdout="\n".join(lines))
 
     keys = {}
@@ -454,23 +450,19 @@ def verify_cross_cvm_key(ctx: StepContext) -> StepHandlerResult:
 # ── Steps ─────────────────────────────────────────────────────────────────────
 
 def steps() -> list[BaseStep]:
-    pre = [
+    return [
         Step.for_callable(
             name="Calculate measurement",
             type="setup",
             handler="calculate_measurement",
             timeout=60,
         ),
-    ]
-    if _HAS_ID_BLOCK:
-        pre.append(Step.for_callable(
+        Step.for_callable(
             name="Generate ID block",
             type="setup",
             handler="generate_id_block",
             timeout=30,
-        ))
-
-    return pre + [
+        ),
         Step.for_vm_launch(
             name="Launch SEV-SNP guest",
             type="setup",
@@ -533,13 +525,13 @@ def steps() -> list[BaseStep]:
             name="Test SVN bound enforcement and sensitivity",
             type="required",
             handler="test_svn",
-            timeout=120,
+            timeout=300,
         ),
         Step.for_callable(
             name="Test TCB bound enforcement and sensitivity",
             type="required",
             handler="test_tcb",
-            timeout=120,
+            timeout=900,
         ),
         Step.for_callable(
             name="Test GFS sensitivity",
