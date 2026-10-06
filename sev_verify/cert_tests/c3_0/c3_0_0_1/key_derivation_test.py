@@ -6,18 +6,19 @@ consistent derived keys:
   - VMPL isolation: different VMPL -> different keys
   - Root key difference: VCEK vs VMRK -> different keys
   - Guest SVN sensitivity and above-bound rejection
-  - TCB version sensitivity and committed-TCB bound enforcement
+  - TCB version sensitivity and launch-TCB bound enforcement
   - Guest Field Select (GFS) sensitivity and per-bit field mixing
 
 The attestation report is fetched first and read directly as bytes via
 :mod:`sev_verify.attestation_report` — see that module for why binary
 parsing is used in place of ``snpguest display report`` text, and for how
-TCB_VERSION's generation-dependent byte layout is resolved. REPORTED_TCB is
-the platform's committed TCB at report time, which drives the TCB loop's
-bounds; GUEST_SVN and VMPL drive the other two.
+TCB_VERSION's generation-dependent byte layout is resolved. The bounds are the
+values the guest was launched with: LAUNCH_TCB (the TCB captured at launch,
+fixed for the life of the VM) bounds the TCB loop, and GUEST_SVN (the SVN from
+the ID block) bounds the SVN loop. VMPL drives the third.
 
-Above-bound TCB tests use committed+1, committed+2, committed+3 per
-component, derived from the runtime attestation report. No static
+Above-bound TCB tests use launch+1, launch+2, launch+3 per component,
+derived from the runtime attestation report. No static
 assumption about platform TCB values is needed.
 
 The guest is always launched with an ID block (sev_verify.cvm_props), so
@@ -43,7 +44,7 @@ vm_profile = VMProfile(
     memory_mb=2048,
 )
 
-_TCB_ABOVE_BOUND_STEPS = 3  # number of values above committed bound to test per component
+_TCB_ABOVE_BOUND_STEPS = 3  # number of values above the launch bound to test per component
 
 
 # ── Report helpers ─────────────────────────────────────────────────────────────
@@ -157,7 +158,8 @@ def parse_report(ctx: StepContext) -> StepHandlerResult:
         exit_code=0,
         stdout=(f"Report version: {report.version}, Guest SVN: {report.guest_svn}\n"
                 f"Generation: {report.generation}\n"
-                f"Committed TCB: {report.reported_tcb}"),
+                f"Launch TCB: {report.launch_tcb}\n"
+                f"Reported TCB: {report.reported_tcb}"),
     )
 
 
@@ -238,7 +240,7 @@ def test_svn(ctx: StepContext) -> StepHandlerResult:
     except attestation_report.ReportError as exc:
         return StepHandlerResult(exit_code=1, stderr=str(exc))
     max_svn = report.guest_svn
-    lines = [f"Guest SVN upper bound: {max_svn}"]
+    lines = [f"Guest SVN upper bound (launch value, from the ID block): {max_svn}"]
     passed = True
 
     # Control: the same request at the bound must succeed, otherwise a
@@ -293,15 +295,17 @@ def test_tcb(ctx: StepContext) -> StepHandlerResult:
         report = _load_report(ctx)
     except attestation_report.ReportError as exc:
         return StepHandlerResult(exit_code=1, stderr=str(exc))
-    c = report.reported_tcb
+    c = report.launch_tcb
     if c is None:
         return StepHandlerResult(
             exit_code=1,
-            stderr="TCB_VERSION could not be decoded for this report — "
-                   "unrecognised processor generation (see attestation_report.py)",
+            stderr=f"LAUNCH_TCB could not be decoded (report version {report.version}, "
+                   f"generation {report.generation}): it needs a version 3 or later "
+                   f"report from a recognised processor generation "
+                   f"(see attestation_report.py)",
         )
     _, layout = attestation_report.host_generation()
-    lines = [f"Committed TCB: {c}"]
+    lines = [f"Launch TCB: {c}"]
     passed = True
 
     # Component list is generation-dependent: fmc only exists on Turin+.
@@ -314,25 +318,25 @@ def test_tcb(ctx: StepContext) -> StepHandlerResult:
     if c.fmc is not None:
         components.append(("fmc", "FMC", c.fmc))
 
-    # Control: the committed TCB itself must be accepted, otherwise a
+    # Control: the launch TCB itself must be accepted, otherwise a
     # rejection above the bound says nothing about the bound.
-    committed_u64 = _make_tcb(
+    launch_u64 = _make_tcb(
         layout, **{comp: val for comp, _label, val in components}
     ).to_u64(layout)
-    ok, err = _derive_key(ctx, "tcb_at_bound.bin", tcb=committed_u64, gfs=1 << 5)
+    ok, err = _derive_key(ctx, "tcb_at_bound.bin", tcb=launch_u64, gfs=1 << 5)
     if not ok:
         return StepHandlerResult(
             exit_code=1,
-            stderr=f"Committed TCB (u64=0x{committed_u64:016x}) was rejected, so "
+            stderr=f"Launch TCB (u64=0x{launch_u64:016x}) was rejected, so "
                    f"rejections above it cannot be attributed to the bound: {_reason(err)}",
         )
 
-    # Above-bound: committed+1 .. committed+N per component must all be rejected.
+    # Above-bound: launch+1 .. launch+N per component must all be rejected.
     for comp, label, max_val in components:
         above_vals = [v for v in range(max_val + 1, max_val + _TCB_ABOVE_BOUND_STEPS + 1)
                       if v <= 0xFF]
         if not above_vals:
-            lines.append(f"{label}: committed={max_val} is max (0xFF) — no above-bound values to test")
+            lines.append(f"{label}: launch={max_val} is max (0xFF) — no above-bound values to test")
             continue
         for val in above_vals:
             tcb_u64 = _make_tcb(layout, **{comp: val}).to_u64(layout)
@@ -348,7 +352,7 @@ def test_tcb(ctx: StepContext) -> StepHandlerResult:
     if not passed:
         return StepHandlerResult(exit_code=1, stderr="\n".join(lines))
 
-    # Sensitivity: vary each component over sampled values up to its committed maximum.
+    # Sensitivity: vary each component over sampled values up to its launch value.
     # Track by tcb_u64 to deduplicate (e.g. val=0 for any component gives the same u64).
     keys: dict[int, bytes] = {}  # tcb_u64 -> key bytes
     attempted: set[int] = set()  # tcb_u64 values we tried to derive
@@ -368,7 +372,7 @@ def test_tcb(ctx: StepContext) -> StepHandlerResult:
                 lines.append(f"TCB {comp}={val} (u64=0x{tcb_u64:016x}) rejected (unexpected): {err}")
 
     if len(attempted) < 2:
-        lines.append("TCB sensitivity N/A — all committed components are zero")
+        lines.append("TCB sensitivity N/A — all launch TCB components are zero")
         return StepHandlerResult(exit_code=0, stdout="\n".join(lines))
     if len(keys) < 2:
         return StepHandlerResult(

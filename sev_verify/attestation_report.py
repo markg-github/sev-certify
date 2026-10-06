@@ -9,7 +9,8 @@ which layout it uses and can be checked on the spot.
 Layout is version-dependent in practice — the report version tracks firmware,
 which tracks CPU generation — but versions have only ever *appended* fields.
 Everything below 0x188 is common to v2 and v3; the CPUID family/model/stepping
-triple at 0x188 exists only in v3+.
+triple at 0x188 exists only in v3+, as does LAUNCH_TCB at 0x1F0 (read only for
+v3+ for the same reason: nothing here establishes that v2 carries it).
 
 **TCB_VERSION is the exception, and it is not version-dependent but
 *generation*-dependent.** The ``sev`` crate decodes it two different ways
@@ -148,6 +149,7 @@ _OFF_AUTHOR_KEY_DIGEST = 0x110
 _OFF_REPORT_ID = 0x140
 _OFF_REPORTED_TCB = 0x180
 _OFF_CPUID_FAM = 0x188  # v3+
+_OFF_LAUNCH_TCB = 0x1F0  # v3+
 
 _LEN_ID = 16
 _LEN_MEASUREMENT = 48
@@ -272,6 +274,12 @@ class AttestationReport:
     #: was decoded with the newest known field offsets. ``None`` when the
     #: version was one this parser has been checked against.
     version_note: str | None = None
+    #: TCB_VERSION the guest was launched under (``CurrentTcb`` captured at launch,
+    #: fixed for the life of the VM). It is the ceiling for a derived key's
+    #: TCB_VERSION. ``None`` when the processor generation was unknown (the byte
+    #: layout cannot be guessed) or the report predates version 3, where this
+    #: offset has not been validated.
+    launch_tcb: TcbVersion | None = None
 
     @property
     def id_block_used(self) -> bool:
@@ -452,11 +460,20 @@ def parse(
                 f"TCB_VERSION left undecoded"
             )
 
+    launch_tcb: TcbVersion | None = None
     if generation is not None:
         gen_name, tcb_layout = generation
         reported_tcb = TcbVersion.from_bytes(
             data[_OFF_REPORTED_TCB:_OFF_REPORTED_TCB + 8], tcb_layout
         )
+        # Same byte layout as REPORTED_TCB. Only read for v3+: the offset is
+        # confirmed there (v5 on Turin, against snpguest's own decoding), while
+        # for v2 nothing here says the field exists, and a wrong offset would
+        # yield plausible-looking but wrong values rather than an error.
+        if version >= 3:
+            launch_tcb = TcbVersion.from_bytes(
+                data[_OFF_LAUNCH_TCB:_OFF_LAUNCH_TCB + 8], tcb_layout
+            )
     else:
         # v2 report and no generation supplied — the TCB layout is unknowable,
         # so leave it undecoded rather than assume one.
@@ -480,6 +497,7 @@ def parse(
         generation=gen_name,
         cpuid_note=cpuid_note,
         version_note=version_note,
+        launch_tcb=launch_tcb,
     )
 
 
