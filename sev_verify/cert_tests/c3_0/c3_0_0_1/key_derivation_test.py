@@ -120,11 +120,13 @@ def _reason(err: str) -> str:
     return err.splitlines()[0] if err else "no message"
 
 
-def _read_key(path: Path) -> Optional[bytes]:
-    try:
-        return path.read_bytes()
-    except Exception:
-        return None
+def _read_key(path: Path) -> bytes:
+    """Read a derived key from artifact_dir.
+
+    Raises on failure rather than returning None: callers compare keys
+    directly, and two failed reads would otherwise compare equal.
+    """
+    return path.read_bytes()
 
 
 # ── Callable step handlers ────────────────────────────────────────────────────
@@ -392,12 +394,12 @@ def test_gfs_field_mixing(ctx: StepContext) -> StepHandlerResult:
     baseline = _read_key(ctx.artifact_dir / "gfs_baseline.bin")
 
     bits = [
-        (0, "Image ID"),
-        (1, "Family ID"),
-        (2, "Measurement"),
-        (3, "Guest SVN Policy"),
+        (0, "Guest Policy"),
+        (1, "Image ID"),
+        (2, "Family ID"),
+        (3, "Measurement"),
         (4, "Guest SVN"),
-        (5, "TCB Version"),
+        (5, "TCB Version")
     ]
     failed = []
     lines = []
@@ -423,8 +425,6 @@ def save_cross_cvm_key(ctx: StepContext) -> StepHandlerResult:
     if not ok:
         return StepHandlerResult(exit_code=1, stderr=f"Key derivation failed: {err}")
     k = _read_key(ctx.artifact_dir / "cross_cvm_key.bin")
-    if k is None:
-        return StepHandlerResult(exit_code=1, stderr="Could not read derived key")
     # Save as cvm1 reference for comparison after second launch
     (ctx.artifact_dir / "cross_cvm_key_1.bin").write_bytes(k)
     return StepHandlerResult(exit_code=0, stdout="Reference key saved from CVM 1")
@@ -435,12 +435,11 @@ def verify_cross_cvm_key(ctx: StepContext) -> StepHandlerResult:
     ok, err = _derive_key(ctx, "cross_cvm_key.bin")
     if not ok:
         return StepHandlerResult(exit_code=1, stderr=f"Key derivation failed in CVM 2: {err}")
-    k2 = _read_key(ctx.artifact_dir / "cross_cvm_key.bin")
-    k1 = _read_key(ctx.artifact_dir / "cross_cvm_key_1.bin")
-    if k1 is None:
+    ref = ctx.artifact_dir / "cross_cvm_key_1.bin"
+    if not ref.exists():
         return StepHandlerResult(exit_code=1, stderr="CVM 1 reference key not found")
-    if k2 is None:
-        return StepHandlerResult(exit_code=1, stderr="Could not read CVM 2 key")
+    k2 = _read_key(ctx.artifact_dir / "cross_cvm_key.bin")
+    k1 = _read_key(ref)
     if k1 == k2:
         return StepHandlerResult(
             exit_code=0,
