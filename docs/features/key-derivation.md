@@ -30,6 +30,8 @@ Only the least-significant 6 bits are defined for message version 1; bit 6 exist
 | 5 | TCB Version | `--tcb_version` |
 | 6 | Launch Mitigation Vector | `--launch_mit_vector` (message version 2 only) |
 
+The VMPL has no bit: it cannot be left out of the key. The VMPL isolation step below requests keys at two VMPLs with the same GFS (the default, which selects only the policy) and gets different keys, so the VMPL is evidently mixed in whatever GFS selects. The test demonstrates this behaviour; it does not establish the rule.
+
 ### Bounds
 
 Two inputs are caller-supplied, so the firmware limits them:
@@ -100,7 +102,7 @@ The test module documents that the firmware rejects a request made at a VMPL low
 | Step | Checks |
 |---|---|
 | Determinism | Two identical requests return the same key. |
-| VMPL isolation | A key at the running VMPL differs from one at the next VMPL up. Not applicable (and reported as such) at VMPL 3. |
+| VMPL isolation | A key at the running VMPL differs from one at the next VMPL up, with the same GFS for both (so this also shows the VMPL is mixed in without a GFS bit). Not applicable (and reported as such) at VMPL 3. |
 | Root key difference | VCEK and VMRK keys differ for otherwise identical inputs. |
 | SVN bounds and sensitivity | The guest SVN bound itself is accepted; bound+1 to bound+3 are rejected; sampled SVNs from 0 to the bound each give a distinct key. If `ID_BLOCK_GUEST_SVN` is 0 there is only one valid SVN, and the sensitivity part is reported as N/A. |
 | TCB bounds and sensitivity | The full launch TCB is accepted; for each component, launch+1 to +3 (that component alone) are rejected; sampled values of each component give distinct keys. A component already at 255 is skipped in the above-bound check, since there is no higher value to try. |
