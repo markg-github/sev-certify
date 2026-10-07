@@ -3,7 +3,7 @@
 **Description:** A guest firmware request that returns a 256-bit key derived from a root key (the VCEK or the VMRK) and a selectable set of the guest's own identity fields. The same inputs on the same chip always produce the same key, and changing any selected input produces a different one.  
 **When to Use:** Uses include sealing data to a guest identity, so that only a guest with the same selected identity on the same chip can recover it. The guest chooses which identity fields (policy, image ID, family ID, measurement, SVN, TCB version) the key is bound to.  
 **How to Use:** `snpguest key` in the guest (wraps `SNP_GUEST_REQUEST` / `MSG_KEY_REQ`).  
-**What sev-certify tests:** That derivation is deterministic and stable across independent guest launches, that each VMPL, and GFS bit changes the key, and that the firmware enforces the guest SVN and TCB version bounds.
+**What sev-certify tests:** That derivation is deterministic and stable across independent guest launches, that each root, VMPL, and GFS bit changes the key, and that the firmware enforces the guest SVN and TCB version bounds.
 
 ---
 
@@ -14,6 +14,7 @@
 - **A root key** — the [VCEK](tcb-config-commit.md#vcek) (derived from chip-unique secrets) or the [VMRK](#vmrk).
 - **A VMPL** — the privilege level the request is made at.
 - **Guest Field Select (GFS)** — a bitmask choosing which guest fields are mixed into the key (below).
+- **Guest identity fields** — the guest's policy, [family ID](#family-id), [image ID](#image-id) and measurement. These are fixed when the guest is launched (the first three come from the [ID block](#id-block)), and each is mixed in only if its GFS bit is set.
 - **A guest SVN** and a **TCB version** — caller-supplied values that are mixed in only if the matching GFS bit is set.
 
 ### Guest Field Select
@@ -125,7 +126,8 @@ For the TCB sweep, one component is varied at a time with the others at 0. FMC i
 - **Launch Mitigation Vector** (GFS bit 6, message version 2) is not exercised.
 - **VMRK** is compared against VCEK once; the SVN, TCB and GFS sweeps use the VCEK only.
 - **VMPL isolation** compares the running VMPL with the next one up, not every pair.
-- **The cross-CVM check** uses the default request parameters only.
+- **The cross-CVM check** uses the default request parameters only. With the default GFS (`0x1`), only the guest policy is mixed in.
+- **Changing an identity value.** Policy, family ID, image ID and measurement are fixed for the whole run, so the test never changes one and shows the key changing with it. GFS bits 1–3 (image ID, family ID, measurement) are exercised only as masks, not as values (see GFS field mixing above). Showing that a different family ID or image ID gives a different key would need a second guest launched with a different ID block, for example by changing `ID_BLOCK_FAMILY_ID` or `ID_BLOCK_IMAGE_ID` between launches.
 - **Unrecognised processor generations** (for example one newer than Turin whose TCB layout is not yet in `SUPPORTED_GENERATIONS`) fail at the report-parsing step, and the steps that need the report's bounds fail with it. Supporting a new generation means adding it to that table, with its layout confirmed against `snphost show tcb` on real hardware.
 - **Version 2 attestation reports** leave `LAUNCH_TCB` undecoded, so the TCB step fails rather than guess. No platform tested so far produces them.
 
@@ -133,8 +135,14 @@ For the TCB sweep, one component is varied at a time with the others at 0. FMC i
 
 ## Glossary
 
+<a id="family-id"></a>
+**Family ID** — A 16-byte value the guest owner puts in the [ID block](#id-block), copied into the attestation report. It conventionally groups related guest images. Mixed into a derived key when GFS bit 2 is set.
+
 <a id="id-block"></a>
 **ID block** — A signed structure supplied when a guest is launched. It carries the expected measurement, guest policy, family ID, image ID and guest SVN. The firmware checks the measurement at launch, and the other fields then appear in the attestation report and are available to mix into derived keys. sev-certify self-signs one with ephemeral keys.
+
+<a id="image-id"></a>
+**Image ID** — A 16-byte value the guest owner puts in the [ID block](#id-block), copied into the attestation report. It conventionally identifies one specific guest image. Mixed into a derived key when GFS bit 1 is set.
 
 <a id="launch-tcb"></a>
 **LaunchTcb (`LAUNCH_TCB`)** — The TCB (`CurrentTcb`) captured when a guest was launched. It is fixed for the life of the VM and appears in the attestation report as `LAUNCH_TCB`.
